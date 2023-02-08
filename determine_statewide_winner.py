@@ -6,6 +6,12 @@ import matplotlib.pyplot as plt
 #following
 #https://automating-gis-processes.github.io/CSC/notebooks/L2/geopandas-basics.html
 
+#2020 results disaggregated to census block:
+#https://redistrictingdatahub.org/dataset/georgia-2020-general-election-results-disaggregated-to-the-2020-block/
+#2021 districts disaggregated to census block:
+#https://redistrictingdatahub.org/dataset/2021-georgia-congressional-districts-approved-plan/
+#we should use census block XOR voting precinct and just handwave/apologize for not having the other
+
 fp = "ga_2020/ga_2020.shp"
 ga_data = gpd.read_file(fp)
 
