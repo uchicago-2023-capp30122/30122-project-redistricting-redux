@@ -1,4 +1,5 @@
 import geopandas as gpd
+import matplotlib.pyplot as plt
 
 #why does this hang for a few seconds?
 
@@ -42,5 +43,22 @@ def determine_winner(data):
             print(f"{key} wins!")
             return key
 
+def plot_redblue_by_precinct(data):
+    '''
+    Outputs a map of the state that color-codes each precinct by the partisan
+    balance of its vote, i.e. dark blue if it overwhelmingly voted for Biden,
+    dark red if it overwhelmingly voted for Trump, and some neutral for if it
+    was close to even.
+    Inputs:
+        -data (geopandas DataFrame):
+    Outputs:
+        -plot as .jpg file in folder
+    '''
+    data['raw_margin'] = data.G20PREDBID - data.G20PRERTRU
+    data['margin_points'] = data.raw_margin / (data.G20PREDBID + data.G20PRERTRU)
+
+    data.plot(column='margin_points', cmap='seismic_r', legend=True)
+    plt.savefig('ga_test_map.jpg') 
+
 if __name__ == '__main__':
-    determine_winner(ga_data)
+    plot_redblue_by_precinct(ga_data)
