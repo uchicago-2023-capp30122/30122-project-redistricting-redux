@@ -1,5 +1,6 @@
 import geopandas as gpd
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 #why does this hang for a few seconds?
 
@@ -58,13 +59,16 @@ def plot_redblue_by_precinct(data):
     Inputs:
         -data (geopandas DataFrame):
     Outputs:
-        -plot as .jpg file in folder
+        -plot as .png file in folder
     '''
     data['raw_margin'] = data.G20PREDBID - data.G20PRERTRU
     data['margin_points'] = data.raw_margin / (data.G20PREDBID + data.G20PRERTRU)
 
     data.plot(column='margin_points', cmap='seismic_r', legend=True)
-    plt.savefig('ga_test_map.jpg') 
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filepath = 'maps/ga_test_map_' + timestamp
+    plt.savefig(filepath) 
 
 if __name__ == '__main__':
     plot_redblue_by_precinct(ga_data)
