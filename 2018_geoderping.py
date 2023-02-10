@@ -1,6 +1,7 @@
 print("Importing geopandas...")
 import geopandas as gpd
 import numpy as np
+import random
 
 print("Importing Georgia 2018 precinct shapefile data...")
 fp = "openprecincts_ga_2018/2018Precincts.shp"
@@ -90,6 +91,28 @@ def draw_into_district(df, precinct, id):
 
     Returns: Nothing, modifies df in-place
     '''
+    #TODO: something like:
+    #df[df.precinct == precinct].fake_dist_id = id
+
+def draw_random_district(df, target_pop, id, curr_precinct=None):
+    '''
+    Create a cHaOs dIsTrIcT. 
+    '''
+    #TODO: Implement random algo
+    #if the total pop of all things with fake_dist_id==id >= target_pop:
+        #code in some level of allowable deviation
+        #end the program
+    #if curr_precinct is None:
+        #select a random precinct to start at
+    #if df[df.precinct == precinct].fake_dist_id is None:
+        #draw_into_district(df, precinct, id)
+    # bring up df[df.precinct== precinct].neighbors
+    # filter those down to neighbors whose fake_dist_id is still None
+    #if that's not true of any of these neigbhbors:
+        #jump to a random precinct in the district and try again 
+        #find some way to reference its "edges" to make this less shitty and bogosortish
+    # call this function with curr_precinct as that neighbor
+
 
 if __name__ == '__main__':
     #print(target_dist_pop(ga_data, 14))
