@@ -2,6 +2,7 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 from datetime import datetime
 
+#this should be helperized
 print("Importing Georgia 2020 shapefile data...")
 fp = "ga_2020/ga_2020.shp"
 ga_data = gpd.read_file(fp)
