@@ -126,11 +126,13 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
     if population_sum(df, 'tot', district=id) >= target_pop:
         print("Target population met or exceeded. Ending district draw")
         #time.sleep(5)
-        clear_district_drawings(df)
+        #clear_district_drawings(df)
         return None #"break"
         #TODO: code in some level of allowable deviation
 
     if curr_precinct is None:
+        #select a random precinct to start at
+        #TODO: Need to make sure it's outside districts that have been drawn
         curr_index = random.randint(0, len(df)-1)
         curr_precinct = df.loc[curr_index, 'loc_prec']
         # #select a random precinct to start at
@@ -167,20 +169,25 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         if df.loc[nabe_index[0], 'fake_dist_id'] is None:
             allowed_neighbors.append(nabe)
     #print(allowed_neighbors)
-    #TODO: Handle case where there are no available neighbors to draw into
+    #Handle case where there are no available neighbors to draw into
     if len(allowed_neighbors) == 0:
-        print("No valid neighbors to draw into! Gotta handle this error case. Stopping")
+        print("No valid neighbors to draw into! Handling error case...")
         #Interestingly, without this error case handled, it very rarely gets to the population limit
         #On Saturday 2/11 I ran a loop to do this procedure 1,000 times, and it only hit the population limit 19 times
-        clear_district_drawings(df)
-        return None
+        #clear_district_drawings(df)
+        dist_so_far = list(df[df.fake_dist_id == id]['loc_prec'])
+        unstick_precinct = random.choice(dist_so_far)
+        print(f"Trying again with {unstick_precinct} as resumption point")
+        #time.sleep(0.1)
+        draw_random_district(df, target_pop, id, curr_precinct=unstick_precinct)
+        #return None
         #jump to a random precinct in the district and try again 
-        #find some way to reference its "edges" to make this less shitty and bogosortish
-
+        #TODO: find some way to reference its "edges" to make this less shitty and bogosortish
+    else:
     #select a neighbor at random and call this functoin again 
     #https://stackoverflow.com/questions/306400/how-can-i-randomly-select-an-item-from-a-list
-    next_precinct = random.choice(allowed_neighbors)
-    draw_random_district(df, target_pop, id, curr_precinct=next_precinct)
+        next_precinct = random.choice(allowed_neighbors)
+        draw_random_district(df, target_pop, id, curr_precinct=next_precinct)
 
 
 def draw_random_state_map(df, num_districts):
@@ -197,10 +204,13 @@ def draw_random_state_map(df, num_districts):
     #TODO: Finish this function
     target_pop = target_dist_pop(df, num_districts)
     for id in range(1, num_districts + 1):
+        print(f"Now drawing district {id}...")
+        time.sleep(0.5)
         draw_random_district(df, target_pop, id)
+        #beware this can get stuck in an infinite loop rn
     #EXPORT SOMETHING SOMEWHERE SO MAP IS REPRODUCIBLE
     #maybe do something to add "orphan" precincts to the least populous nearby
-    #district all at once at the end, should be faster?
+    #district all at once at the end should be faster?
 
 
 #Multiple possible kinds of plot:
