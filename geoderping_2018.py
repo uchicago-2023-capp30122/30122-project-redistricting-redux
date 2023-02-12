@@ -77,7 +77,10 @@ def blue_red_margin(df, dcol, rcol, district=None):
     red_total = population_sum(df, rcol, district)
 
     #do something to avoid division by zero
-    return (blue_total - red_total) / (blue_total + red_total)
+    try:
+        return (blue_total - red_total) / (blue_total + red_total)
+    except ZeroDivisionError:
+        return 0.0
 
 
 def target_dist_pop(df, n=14):
@@ -183,11 +186,6 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         draw_into_district(df, curr_precinct, id)
         print(f"Current district population: {population_sum(df, 'tot', district=id)}")
 
-    if len(all_allowed_neighbors_of_district(df, id)) == 0:
-        print("It is impossible to continue drawing a contiguous district. Stopping")
-        time.sleep(1)
-        return None
-
     all_neighbors = df.loc[curr_index, 'neighbors']
     #print(all_neighbors)
     #again i JUST want a string. jfc. 
@@ -208,6 +206,7 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         #Interestingly, without this error case handled, it very rarely gets to the population limit
         #On Saturday 2/11 I ran a loop to do this procedure 1,000 times, and it only hit the population limit 19 times
         #clear_district_drawings(df)
+ 
         dist_so_far = list(df[df.fake_dist_id == id]['loc_prec']) 
 
         #handle the error if there are no valid neighbors and it's the first precinct for a new district
@@ -216,7 +215,13 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
             time.sleep(1)
             draw_into_district(df, curr_precinct, None) #undo initial draw
             draw_random_district(df, target_pop, id)
-        
+
+        #handle the error where there are no neighbors of *any* point in district
+        if len(all_allowed_neighbors_of_district(df, id)) == 0:
+            print("It is impossible to continue drawing a contiguous district. Stopping")
+            time.sleep(1)
+            return None
+
         unstick_precinct = random.choice(dist_so_far)
         print(f"Trying again with {unstick_precinct} as resumption point")
         #time.sleep(0.1)
@@ -271,12 +276,12 @@ def draw_random_state_map(df, num_districts):
         print(f"Now drawing district {id}...")
         time.sleep(0.5)
         draw_random_district(df, target_pop, id)
-        #beware this can get stuck in an infinite loop rn
+
     #EXPORT SOMETHING SOMEWHERE SO MAP IS REPRODUCIBLE
     #maybe do something to add "orphan" precincts to the least populous nearby
     #district all at once at the end should be faster?
 
-def plot_redblue_by_district(df, dcol, rcol):
+def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
     '''
     Outputs a map of the state that color-codes each district by the partisan
     balance of its vote, i.e. dark blue if it overwhelmingly voted for Democrat,
@@ -289,7 +294,9 @@ def plot_redblue_by_district(df, dcol, rcol):
         -plot as .png file in folder
     '''
     
-    df['raw_margin'] = df['fake_dist_id']
+    df['raw_margin'] = None
+    for i in range(1, num_dists+1):
+        df.loc[df.fake_dist_id == i, 'raw_margin'] = blue_red_margin(df, dcol, rcol, i)
     #antipattern time
     #for row in df.iterrows:
     #blue_red_margin(df, dcol, rcol, district=df['fake_dist_id'])
