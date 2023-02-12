@@ -4,6 +4,8 @@ import numpy as np
 import random #SINCE YOU USE RANDOM YOU NEED TO SET A SEED SOMEWHERE FOR REPLICABILITY
 import re
 import time
+from datetime import datetime
+import matplotlib as plt
 
 def startup():
     '''
@@ -274,7 +276,30 @@ def draw_random_state_map(df, num_districts):
     #maybe do something to add "orphan" precincts to the least populous nearby
     #district all at once at the end should be faster?
 
+def plot_redblue_by_district(df, dcol, rcol):
+    '''
+    Outputs a map of the state that color-codes each district by the partisan
+    balance of its vote, i.e. dark blue if it overwhelmingly voted for Democrat,
+    dark red if it overwhelmingly voted for Republican, and some neutral for if it
+    was close to even.
+    Call this only AFTER drawing a map of districts.
+    Inputs:
+        -df (geopandas DataFrame): 
+    Outputs:
+        -plot as .png file in folder
+    '''
+    
+    df['raw_margin'] = df['fake_dist_id']
+    #antipattern time
+    #for row in df.iterrows:
+    #blue_red_margin(df, dcol, rcol, district=df['fake_dist_id'])
+    #data['margin_points'] = data.raw_margin / (data.G20PREDBID + data.G20PRERTRU)
 
+    df.plot(column='raw_margin', cmap='seismic_r', legend=True)
+
+    timestamp = datetime.now().strftime("%m-%d_%H%M%S")
+    filepath = 'maps/ga_test_map_' + timestamp
+    plt.pyplot.savefig(filepath) 
 #Multiple possible kinds of plot:
     #-state map (choropleth colored by Kemp-Abrams or Biden-Trump margin)
     #-state map (choropleth colored by racial demographics)
