@@ -304,9 +304,10 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
         -plot as .png file in folder
     '''
     
-    df['raw_margin'] = 0.0
+    df['raw_margin'] = None
     for i in range(1, num_dists+1):
         df.loc[df.fake_dist_id == i, 'raw_margin'] = blue_red_margin(df, dcol, rcol, i)
+    df.loc[df.fake_dist_id == None, 'raw_margin'] = 0.0
     #antipattern time
     #for row in df.iterrows:
     #blue_red_margin(df, dcol, rcol, district=df['fake_dist_id'])
