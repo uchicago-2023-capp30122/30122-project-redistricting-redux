@@ -163,6 +163,8 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         return None #"break"
         #TODO: code in some level of allowable deviation
 
+    print("debug statement before starting anything")
+
     if curr_precinct is None:
         #select a random precinct to start at
         #TODO: Need to make sure it's outside districts that have been drawn
@@ -207,24 +209,30 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         #On Saturday 2/11 I ran a loop to do this procedure 1,000 times, and it only hit the population limit 19 times
         #clear_district_drawings(df)
  
-        dist_so_far = list(df[df.fake_dist_id == id]['loc_prec'])
+        dist_so_far = [] + list(df[df.fake_dist_id == id]['loc_prec'])
+        #debug attempt: adding empty list so it's always a list
 
         #assert dist_so_far is not None, "dist_so_far is None"
 
         #handle the error if there are no valid neighbors and it's the first precinct for a new district
         if dist_so_far is None or len(dist_so_far) == 0:
             print("It looks like you can't start drawing here. Restarting somewhere else...")
-            time.sleep(1)
+            time.sleep(0.5)
             draw_into_district(df, curr_precinct, None) #undo initial draw
             draw_random_district(df, target_pop, id)
 
         #handle the error where there are no neighbors of *any* point in district
+        #This shouldn't print multiple times for one district, and yet it sometimes prints
+        #two or three times
         if len(all_allowed_neighbors_of_district(df, id)) == 0:
             print("It is impossible to continue drawing a contiguous district. Stopping")
-            time.sleep(1)
+            time.sleep(0.5)
             return None
 
-        unstick_precinct = random.choice(dist_so_far)
+        #this picks from a neighbor that is guaranteed to be empty and allowed
+        unstick_precinct = random.choice(all_allowed_neighbors_of_district(df, id))
+        #this line is causing bugs: "raise IndexError('Cannot choose from an empty sequence') from None"
+        #unstick_precinct = random.choice(dist_so_far)
         print(f"Trying again with {unstick_precinct} as resumption point")
         #time.sleep(0.1)
         draw_random_district(df, target_pop, id, curr_precinct=unstick_precinct)
@@ -276,7 +284,7 @@ def draw_random_state_map(df, num_districts):
     target_pop = target_dist_pop(df, num_districts)
     for id in range(1, num_districts + 1):
         print(f"Now drawing district {id}...")
-        time.sleep(0.5)
+        time.sleep(0.2)
         draw_random_district(df, target_pop, id)
 
     #EXPORT SOMETHING SOMEWHERE SO MAP IS REPRODUCIBLE
@@ -304,7 +312,11 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
     #blue_red_margin(df, dcol, rcol, district=df['fake_dist_id'])
     #data['margin_points'] = data.raw_margin / (data.G20PREDBID + data.G20PRERTRU)
 
-    df.plot(column='raw_margin', cmap='seismic_r', legend=True)
+    #TODO: figure out how to push legend off map, or maybe turn it into categorical color bar
+    df.plot(column='raw_margin', cmap='seismic_r')
+    # fig, ax = plt.subplots()
+    # sm = plt.cm.ScalarMappable(cmap='seismic_r')
+    # cbar = fig.colorbar(sm)
 
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
     filepath = 'maps/ga_testmap_' + timestamp
