@@ -304,7 +304,7 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
         -plot as .png file in folder
     '''
     
-    df['raw_margin'] = None
+    df['raw_margin'] = 0.0
     for i in range(1, num_dists+1):
         df.loc[df.fake_dist_id == i, 'raw_margin'] = blue_red_margin(df, dcol, rcol, i)
     #antipattern time
@@ -320,7 +320,7 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
 
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
     filepath = 'maps/ga_testmap_' + timestamp
-    plt.pyplot.savefig(filepath) 
+    plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
 #Multiple possible kinds of plot:
     #-state map (choropleth colored by Kemp-Abrams or Biden-Trump margin)
