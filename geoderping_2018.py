@@ -207,10 +207,12 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         #On Saturday 2/11 I ran a loop to do this procedure 1,000 times, and it only hit the population limit 19 times
         #clear_district_drawings(df)
  
-        dist_so_far = list(df[df.fake_dist_id == id]['loc_prec']) 
+        dist_so_far = list(df[df.fake_dist_id == id]['loc_prec'])
+
+        #assert dist_so_far is not None, "dist_so_far is None"
 
         #handle the error if there are no valid neighbors and it's the first precinct for a new district
-        if len(dist_so_far) == 0:
+        if dist_so_far is None or len(dist_so_far) == 0:
             print("It looks like you can't start drawing here. Restarting somewhere else...")
             time.sleep(1)
             draw_into_district(df, curr_precinct, None) #undo initial draw
@@ -304,9 +306,10 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
 
     df.plot(column='raw_margin', cmap='seismic_r', legend=True)
 
-    timestamp = datetime.now().strftime("%m-%d_%H%M%S")
-    filepath = 'maps/ga_test_map_' + timestamp
+    timestamp = datetime.now().strftime("%m%d-%H%M%S")
+    filepath = 'maps/ga_testmap_' + timestamp
     plt.pyplot.savefig(filepath) 
+    print(f"District map saved to {filepath}")
 #Multiple possible kinds of plot:
     #-state map (choropleth colored by Kemp-Abrams or Biden-Trump margin)
     #-state map (choropleth colored by racial demographics)
@@ -317,7 +320,15 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
 
 
 if __name__ == '__main__':
-    startup()
+    ga_data = startup()
+    print("Drawing random map:")
+    draw_random_state_map(ga_data, 14)
+    print("Plotting districts on state map:")
+    plot_redblue_by_district(ga_data, "G18DGOV", "G18RGOV")
+    print("Clearing districts...")
+    clear_district_drawings(ga_data)
+
+
     #print(target_dist_pop(ga_data, 14))
     #print("Here are all the columns:")
     #print(population_sum(ga_data, "totVAP"))
@@ -325,4 +336,4 @@ if __name__ == '__main__':
     #set_precinct_neighbors(ga_data)
     #print("Neighbors set")
     #print(len(ga_data))
-    print(ga_data.loc_prec)
+    #print(ga_data.loc_prec)
