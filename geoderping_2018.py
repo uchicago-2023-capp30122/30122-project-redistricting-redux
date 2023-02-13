@@ -329,7 +329,41 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
     #-bar chart (put statewide margin on dotted line on x axis, give each district a bar with its %D/%R vertically through it)
     #-bar chart (racial demographics)
 
+def cleanup_map(df):
+    '''
+    Takes the initial output of draw_random_state_map and "cleans it up" so that
+    all districts are contiguous, gapless, and of relatively even population
+    size. 
+    This may have to involve a while loop that goes through all unclaimed precincts
+    repeatedly until they're all claimed, which would be slow af, or there may
+    be a way to break it into helper functions that all target specific kinds of
+    subdistricts
+    '''
+    #TODO: Fix "orphaned areas" surrounded by a district -- if there is a precinct
+    #or cluster of precincts whose dist_id is None, and all surrounding area has 
+    #the same dist_id, assign the orphaned precincts to the district surrounding them.
+    
+    #TODO possibly, if we care: Fix "orphaned districts" surrounded entirely by
+    #a different district. (Note: This is one of the most obvious failure modes
+    #by which draw_random_state_map produces districts that are way too small in
+    #population and impossible to fill. If you can, adjust THAT function so its
+    # "random" starting points are not trapped inside a different district --
+    # or do the "orphaned areas" fix BEFORE starting to draw the next one
 
+    #TODO: "population swaps" -- if there is a district whose total population is
+    #too large (wthin something like 1% of even), and it borders a district whose
+    #total population is too small, reassign neighboring precincts of the more populous
+    #district to the less populous one until it is close to the target population
+    pass
+
+def map_stats_table(df):
+    '''
+    Compresses the df down to a table of by-district stats, where each row
+    represents entire area with one dist_id. e.g. population, racial demographics,
+    Dem vote, Rep vote, and margin, for easier calling and plotting 
+    '''
+    #TODO: Implemetn this function
+    pass
 
 if __name__ == '__main__':
     ga_data = startup()
