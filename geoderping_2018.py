@@ -22,7 +22,7 @@ def startup():
     print("Calculating district neighbors:")
     set_precinct_neighbors(ga_data)
     print("District neighbors calculated")
-    ga_data['fake_dist_id'] = None #maybe set to something like "Unassigned" so you can
+    ga_data['dist_id'] = None #maybe set to something like "Unassigned" so you can
     #do calculations on leftover area for incomplete maps?
 
     #This should write the geodataframe *back out* so you don't have to run it
@@ -31,7 +31,7 @@ def startup():
     return ga_data
 
 def clear_district_drawings(df):
-    df['fake_dist_id'] = None
+    df['dist_id'] = None
 
 def population_sum(df, colname, district=None):
     '''
@@ -48,7 +48,7 @@ def population_sum(df, colname, district=None):
     '''
 
     if district is not None:
-        df = df[df.fake_dist_id == district]
+        df = df[df.dist_id == district]
 
     return int(df[colname].sum())
 
@@ -145,7 +145,7 @@ def draw_into_district(df, precinct, id):
     Returns: Nothing, modifies df in-place
     '''
     #warning: there are three fewer loc_prec than rows in the 2018 dataset
-    df.loc[df['loc_prec'] == precinct, 'fake_dist_id'] = id
+    df.loc[df['loc_prec'] == precinct, 'dist_id'] = id
 
     #ok this works
 
@@ -162,6 +162,8 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         #clear_district_drawings(df)
         return None #"break"
         #TODO: code in some level of allowable deviation
+
+    print("debug statement before starting anything")
 
     if curr_precinct is None:
         #select a random precinct to start at
@@ -181,7 +183,7 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         curr_index = df.index[df['loc_prec'] == curr_precinct].tolist()[0]
         print(f"We continue with: {curr_precinct}")
 
-    if df.loc[curr_index, 'fake_dist_id'] is None:
+    if df.loc[curr_index, 'dist_id'] is None:
         print(f"Now drawing {curr_precinct} into district")
         draw_into_district(df, curr_precinct, id)
         print(f"Current district population: {population_sum(df, 'tot', district=id)}")
@@ -191,13 +193,13 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
     #again i JUST want a string. jfc. 
     #link to index derping stuff i've been drawing on: 
     #https://stackoverflow.com/questions/21800169/python-pandas-get-index-of-rows-where-column-matches-certain-value
-    # filter those down to neighbors whose fake_dist_id is still None
+    # filter those down to neighbors whose dist_id is still None
     # consider redoing as an elegant list comprehension
     allowed_neighbors = []
     for nabe in all_neighbors:
         nabe_index = df.index[df['loc_prec'] == nabe].tolist()
         #print(nabe_index)
-        if df.loc[nabe_index[0], 'fake_dist_id'] is None:
+        if df.loc[nabe_index[0], 'dist_id'] is None:
             allowed_neighbors.append(nabe)
     #print(allowed_neighbors)
     #Handle case where there are no available neighbors to draw into
@@ -207,22 +209,30 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         #On Saturday 2/11 I ran a loop to do this procedure 1,000 times, and it only hit the population limit 19 times
         #clear_district_drawings(df)
  
-        dist_so_far = list(df[df.fake_dist_id == id]['loc_prec']) 
+        dist_so_far = [] + list(df[df.dist_id == id]['loc_prec'])
+        #debug attempt: adding empty list so it's always a list
+
+        #assert dist_so_far is not None, "dist_so_far is None"
 
         #handle the error if there are no valid neighbors and it's the first precinct for a new district
-        if len(dist_so_far) == 0:
+        if dist_so_far is None or len(dist_so_far) == 0:
             print("It looks like you can't start drawing here. Restarting somewhere else...")
-            time.sleep(1)
+            time.sleep(0.5)
             draw_into_district(df, curr_precinct, None) #undo initial draw
             draw_random_district(df, target_pop, id)
 
         #handle the error where there are no neighbors of *any* point in district
+        #This shouldn't print multiple times for one district, and yet it sometimes prints
+        #two or three times
         if len(all_allowed_neighbors_of_district(df, id)) == 0:
             print("It is impossible to continue drawing a contiguous district. Stopping")
-            time.sleep(1)
+            time.sleep(0.5)
             return None
 
-        unstick_precinct = random.choice(dist_so_far)
+        #this picks from a neighbor that is guaranteed to be empty and allowed
+        unstick_precinct = random.choice(all_allowed_neighbors_of_district(df, id))
+        #this line is causing bugs: "raise IndexError('Cannot choose from an empty sequence') from None"
+        #unstick_precinct = random.choice(dist_so_far)
         print(f"Trying again with {unstick_precinct} as resumption point")
         #time.sleep(0.1)
         draw_random_district(df, target_pop, id, curr_precinct=unstick_precinct)
@@ -243,7 +253,7 @@ def all_allowed_neighbors_of_district(df, id):
     contiguous district.
     '''
     nabe_set = set()
-    nabes_so_far = list(df[df.fake_dist_id == id]['neighbors'])
+    nabes_so_far = list(df[df.dist_id == id]['neighbors'])
     for array in nabes_so_far:
         for nabe in array:
             nabe_set.add(nabe)
@@ -254,7 +264,7 @@ def all_allowed_neighbors_of_district(df, id):
     for nabe in nabe_set:
         nabe_index = df.index[df['loc_prec'] == nabe].tolist()
         #print(nabe_index)
-        if df.loc[nabe_index[0], 'fake_dist_id'] is None:
+        if df.loc[nabe_index[0], 'dist_id'] is None:
             allowed_neighbors.append(nabe)
 
     return allowed_neighbors
@@ -274,7 +284,7 @@ def draw_random_state_map(df, num_districts):
     target_pop = target_dist_pop(df, num_districts)
     for id in range(1, num_districts + 1):
         print(f"Now drawing district {id}...")
-        time.sleep(0.5)
+        time.sleep(0.2)
         draw_random_district(df, target_pop, id)
 
     #EXPORT SOMETHING SOMEWHERE SO MAP IS REPRODUCIBLE
@@ -288,25 +298,34 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
     dark red if it overwhelmingly voted for Republican, and some neutral for if it
     was close to even.
     Call this only AFTER drawing a map of districts.
+    FINISH DOCSTRING
     Inputs:
         -df (geopandas DataFrame): 
+        -dcol (str): indicates name of geopandas column
+        -rcol (str):
+        -num_dists (int):
     Outputs:
         -plot as .png file in folder
     '''
     
     df['raw_margin'] = None
     for i in range(1, num_dists+1):
-        df.loc[df.fake_dist_id == i, 'raw_margin'] = blue_red_margin(df, dcol, rcol, i)
+        df.loc[df.dist_id == i, 'raw_margin'] = blue_red_margin(df, dcol, rcol, i)
     #antipattern time
     #for row in df.iterrows:
-    #blue_red_margin(df, dcol, rcol, district=df['fake_dist_id'])
+    #blue_red_margin(df, dcol, rcol, district=df['dist_id'])
     #data['margin_points'] = data.raw_margin / (data.G20PREDBID + data.G20PRERTRU)
 
-    df.plot(column='raw_margin', cmap='seismic_r', legend=True)
+    #TODO: figure out how to push legend off map, or maybe turn it into categorical color bar
+    df.plot(column='raw_margin', cmap='seismic_r')
+    # fig, ax = plt.subplots()
+    # sm = plt.cm.ScalarMappable(cmap='seismic_r')
+    # cbar = fig.colorbar(sm)
 
-    timestamp = datetime.now().strftime("%m-%d_%H%M%S")
-    filepath = 'maps/ga_test_map_' + timestamp
-    plt.pyplot.savefig(filepath) 
+    timestamp = datetime.now().strftime("%m%d-%H%M%S")
+    filepath = 'maps/ga_testmap_' + timestamp
+    plt.pyplot.savefig(filepath, dpi=300) 
+    print(f"District map saved to {filepath}")
 #Multiple possible kinds of plot:
     #-state map (choropleth colored by Kemp-Abrams or Biden-Trump margin)
     #-state map (choropleth colored by racial demographics)
@@ -314,10 +333,96 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
     #-bar chart (put statewide margin on dotted line on x axis, give each district a bar with its %D/%R vertically through it)
     #-bar chart (racial demographics)
 
+def cleanup_map(df):
+    '''
+    Takes the initial output of draw_random_state_map and "cleans it up" so that
+    all districts are contiguous, gapless, and of relatively even population
+    size. 
+    This may have to involve a while loop that goes through all unclaimed precincts
+    repeatedly until they're all claimed, which would be slow af, or there may
+    be a way to break it into helper functions that all target specific kinds of
+    subdistricts
+    '''
+    #TODO: Fix "orphaned areas" surrounded by a district -- if there is a precinct
+    #or cluster of precincts whose dist_id is None, and all surrounding area has 
+    #the same dist_id, assign the orphaned precincts to the district surrounding them.
+    
+    #TODO possibly, if we care: Fix "orphaned districts" surrounded entirely by
+    #a different district. (Note: This is one of the most obvious failure modes
+    #by which draw_random_state_map produces districts that are way too small in
+    #population and impossible to fill. If you can, adjust THAT function so its
+    # "random" starting points are not trapped inside a different district --
+    # or do the "orphaned areas" fix BEFORE starting to draw the next one
 
+    #TODO: "population swaps" -- if there is a district whose total population is
+    #too large (wthin something like 1% of even), and it borders a district whose
+    #total population is too small, reassign neighboring precincts of the more populous
+    #district to the less populous one until it is close to the target population
+    pass
+
+def fill_district_holes(df, id):
+    '''
+    District 'cleanup' helper function. If there are orphan precincts surrounded
+    on all sides by a single district, assigns the orphaned precinct to
+    that surrounding district.
+    Inputs:
+        -FINISH DOCSTRING
+    Returns: None, modifies df in place
+    '''
+    #find precincts not yet drawn into a district
+    holes = df.loc[df['dist_id'].isnull()]
+    #print(holes)
+    valid_holes = [] #list of district names to be drawn
+    #print(valid_holes)
+    
+    #narrow down those precincts to ones whose neighbors all have the same dist_id
+    for index, hole in holes.iterrows():
+        #TypeError: tuple indices must be integers or slices, not str) (-3 is neighbor)
+        districts_around_hole = find_neighboring_districts(df, hole['neighbors'])
+        if len(districts_around_hole) == 1 and id in districts_around_hole:
+            valid_holes.append(hole[0])
+
+    print(valid_holes)
+
+    for valid_hole in valid_holes:
+        draw_into_district(df, valid_hole, id)
+
+def find_neighboring_districts(df, lst):
+    '''
+    Helperizing this function. Takes in a list of precinct names, and 
+    outputs a set of all districts those precincts have been drawn into.
+    Inputs:
+        -df: geopandas GeoDataFrame
+        -lst: list of neighbors as found by df['neighbors'] (it's actually a numpy array)
+    Returns: set of dist_ids
+    '''
+    set_of_dists_theyre_in = set()
+    for precinct_name in lst:
+        the_dist_its_in = df.loc[df['loc_prec'] == precinct_name, 'dist_id'].iloc[0]
+        #again, i JUST want the SINGLE INTEGER. JFC.
+        set_of_dists_theyre_in.add(the_dist_its_in)
+    return set_of_dists_theyre_in
+
+
+def map_stats_table(df):
+    '''
+    Compresses the df down to a table of by-district stats, where each row
+    represents entire area with one dist_id. e.g. population, racial demographics,
+    Dem vote, Rep vote, and margin, for easier calling and plotting 
+    '''
+    #TODO: Implemetn this function
+    pass
 
 if __name__ == '__main__':
-    startup()
+    ga_data = startup()
+    print("Drawing random map:")
+    draw_random_state_map(ga_data, 14)
+    print("Plotting districts on state map:")
+    plot_redblue_by_district(ga_data, "G18DGOV", "G18RGOV")
+    print("Clearing districts...")
+    clear_district_drawings(ga_data)
+
+
     #print(target_dist_pop(ga_data, 14))
     #print("Here are all the columns:")
     #print(population_sum(ga_data, "totVAP"))
@@ -325,4 +430,4 @@ if __name__ == '__main__':
     #set_precinct_neighbors(ga_data)
     #print("Neighbors set")
     #print(len(ga_data))
-    print(ga_data.loc_prec)
+    #print(ga_data.loc_prec)
