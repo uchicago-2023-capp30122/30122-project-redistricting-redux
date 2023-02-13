@@ -163,7 +163,7 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         return None #"break"
         #TODO: code in some level of allowable deviation
 
-    print("debug statement before starting anything")
+    #print("debug statement before starting anything")
 
     if curr_precinct is None:
         #select a random precinct to start at
@@ -286,6 +286,8 @@ def draw_random_state_map(df, num_districts):
         print(f"Now drawing district {id}...")
         time.sleep(0.2)
         draw_random_district(df, target_pop, id)
+        print(f"Filling holes in district {id}...")
+        fill_district_holes(df, id)
 
     #EXPORT SOMETHING SOMEWHERE SO MAP IS REPRODUCIBLE
     #maybe do something to add "orphan" precincts to the least populous nearby
@@ -373,7 +375,6 @@ def fill_district_holes(df, id):
     holes = df.loc[df['dist_id'].isnull()]
     #print(holes)
     valid_holes = [] #list of district names to be drawn
-    #print(valid_holes)
     
     #narrow down those precincts to ones whose neighbors all have the same dist_id
     for index, hole in holes.iterrows():
@@ -382,10 +383,11 @@ def fill_district_holes(df, id):
         if len(districts_around_hole) == 1 and id in districts_around_hole:
             valid_holes.append(hole[0])
 
-    print(valid_holes)
+    print(f"The holes in this district are:{valid_holes}")
 
     for valid_hole in valid_holes:
         draw_into_district(df, valid_hole, id)
+        print("Hole filled")
 
 def find_neighboring_districts(df, lst):
     '''
