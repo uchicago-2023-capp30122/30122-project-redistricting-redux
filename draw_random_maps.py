@@ -431,23 +431,36 @@ def fill_district_holes2(df):
     something to them.
     
     Then maybe surround it with a while loop
+    FINISH DOCSTRING
+    Inputs:
+        -df (geopandas GeoDataFrame):
+    Returns: None, returns df in-place
     '''
     holes = df.loc[df['dist_id'].isnull()]
-    for index, hole in holes.iterrows():
-        districts_around_hole = find_neighboring_districts(df, hole['neighbors'])
-        real_dists_ard_hole = {dist for dist in districts_around_hole if dist is not None}
-        if len(real_dists_ard_hole) == 0: #i.e. if every neighbor of this hole is also a hole:
-            pass #and handle in successive calls to this function
-        elif len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
-            neighbor_dist_id = int(list(real_dists_ard_hole)[0]) #extract that district id
-            #THIS WILL BREAK IF YOU GIVE YOUR DISTRICTS ANY ID OTHER THAN INTEGERS
-            draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
-        elif len(real_dists_ard_hole) >= 2: #i.e. if this could go into one of two other districts
-            #a cleaner way to do this might involve finding the neighboring district
-            #with least population and always drawing into that, so as to make the
-            #pop-swap stuff to come later less onerous.
-            neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
-            draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
+    go_rounds = 0
+    while len(holes) > 0: #May have to have some leeway here to avoid infinite looping 
+        go_rounds += 1
+        print(f"Starting cleanup go-round number {go_rounds}.")
+        holes = df.loc[df['dist_id'].isnull()]
+        print(holes.shape)
+        for index, hole in holes.iterrows():
+            districts_around_hole = find_neighboring_districts(df, hole['neighbors'])
+            real_dists_ard_hole = {dist for dist in districts_around_hole if dist is not None}
+            if len(real_dists_ard_hole) == 0: #i.e. if every neighbor of this hole is also a hole:
+                pass #and handle in successive calls to this function
+            elif len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
+                neighbor_dist_id = int(list(real_dists_ard_hole)[0]) #extract that district id
+                #THIS WILL BREAK IF YOU GIVE YOUR DISTRICTS ANY ID OTHER THAN INTEGERS
+                print(f"Now drawing {hole['loc_prec']} into district {neighbor_dist_id}...")
+                draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
+            elif len(real_dists_ard_hole) >= 2: #i.e. if this could go into one of two other districts
+                #a cleaner way to do this might involve finding the neighboring district
+                #with least population and always drawing into that, so as to make the
+                #pop-swap stuff to come later less onerous.
+                neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
+                draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
+        print(f"Exporting map for go-round nummber {go_rounds}...")
+        plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
 
 
 
@@ -475,7 +488,9 @@ def map_stats_table(df):
     '''
     Compresses the df down to a table of by-district stats, where each row
     represents entire area with one dist_id. e.g. population, racial demographics,
-    Dem vote, Rep vote, and margin, for easier calling and plotting 
+    Dem vote, Rep vote, and margin, for easier calling and plotting .
+
+    Possibly exports as csv for replicability.
     '''
     #TODO: Implement this function
     pass
