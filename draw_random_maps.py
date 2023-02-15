@@ -340,7 +340,7 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
 
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
     filepath = 'maps/ga_testmap_' + timestamp
-    plt.pyplot.savefig(filepath, dpi=200) 
+    plt.pyplot.savefig(filepath, dpi=600) 
     print(f"District map saved to {filepath}")
 #Multiple possible kinds of plot:
     #-state map (choropleth colored by Kemp-Abrams or Biden-Trump margin)
@@ -618,56 +618,50 @@ def draw_recursive_region(df, target_pop, id, drawzone):
     #get all the indices where dist_id == drawzone.
     #then sample one and get its loc_prec.
     #inspiration: https://stackoverflow.com/questions/21800169/python-pandas-get-index-of-rows-where-column-matches-certain-value
-    drawzone_list = df.index[df['dist_id'] == drawzone].tolist()
-    #print([type(i) for i in drawzone_list])
-    drawzone_indices = set(drawzone_list)
+    drawzone_indices = set(df.index[df['dist_id'] == drawzone].tolist())
     #print(drawzone_indices)
     dist_so_far = set()
-    #put neighbors_so_far up here? and only add curr_precinct's neighbors to it at a time
-    #neighbors_so_far = []
-    neighbors_so_far = set()
+    neighbors_so_far = set() #this isn't updating properly all the time
+    #may need to keep track of something like district_edges, which is 
+    #all precincts in district with at least one neighbor whose dist_id == drawzone
 
-    start_index = random.choice(tuple(drawzone_indices)) #maybe just don't use indices if i can refactor to that.
+    start_index = random.choice(tuple(drawzone_indices))
     curr_precinct = df.loc[start_index, 'loc_prec']
     print(f"We're gonna start at: {curr_precinct}")
 
-    #this is currently taking 10 minutes to get through the first halving. need to speed up
     #Make the population sum a giant while loop
     while population_sum(df, 'tot', district=id) <= target_pop:
 
-        #assert df.loc[curr_index, 'dist_id'] == drawzone
         print(f"Now drawing {curr_precinct} into district")
         draw_into_district(df, curr_precinct, id)
         print(f"Current district population: {population_sum(df, 'tot', district=id)}")
-        #make sure you can't draw the same precinct twice
-        #drawzone_indices.remove(curr_index)
-        #dist_so_far.add(curr_index)
+        dist_so_far.add(curr_precinct)
 
         #do the neighbors_so_far stuff now in case you need it later
-        curr_neighbors = set(df[df.loc_prec == curr_precinct]['neighbors'].item().tolist())
-        neighbors_so_far = neighbors_so_far.union(curr_neighbors)
+        curr_neighbors = set(df[df.loc_prec == curr_precinct]['neighbors'].iloc[0].tolist()) #you could do the "is in drawzone" calculations each time here
+        neighbors_so_far = neighbors_so_far.union(curr_neighbors) #and here
+        #you then need to eliminate any overlap between neighbors_so_far and dist_so_far
+        neighbors_so_far = neighbors_so_far - dist_so_far #using minus sign to do set difference operation
+        #https://learnpython.com/blog/python-set-operations/
 
-        #it should draw into a neighbor of this district where possible, because that's much faster
-        #and only look at allowable neighbors of entire district if it can't do that
-        #refactor without curr_index:
-        this_precinct_neighbors = df.loc[df.loc_prec == curr_precinct]['neighbors'].item() #you should be able to refactor this without curr_index
-        #print(this_precinct_neighbors)
-        #print(f"This district has {len(this_precinct_neighbors)} neighbors")
-        valid_neighbors_this_precinct = {neighbor for neighbor in this_precinct_neighbors
-                            if int(df.loc[df.loc_prec == neighbor]['dist_id'].iloc[0]) == drawzone} #This line seems to break, uniquely, for "Columbia,New Life Church"
-        if len(valid_neighbors_this_precinct) > 0:
-            curr_precinct = random.choice(tuple(valid_neighbors_this_precinct))
-            #curr_index = int(df.index[df['loc_prec'] == curr_precinct].item()) #This line also breaks for "Columbia,New Life Church"
+        #Try to draw into a neighbor of current precinct
+        curr_valid_neighbors = {neighbor for neighbor in curr_neighbors
+                            if df.loc[df.loc_prec == neighbor]['dist_id'].iloc[0] == drawzone} #This line seems to break, uniquely, for "Columbia,New Life Church"
+        if len(curr_valid_neighbors) > 0:
+            curr_precinct = random.choice(tuple(curr_valid_neighbors))
             #"ValueError("can only convert an array of size 1 to a Python scalar")"#
         else:
             print("This precinct has no neighbors it can draw into. Jump elsewhere")
-            #this makes the program hang for a bit, why
             #look at allowable neighbors of ENTIRE DISTRICT, reduced to unique values
+            #This makes the program hang for a bit
             neighbors_so_far = {neighbor for neighbor in neighbors_so_far
-                                if int(df.loc[df.loc_prec == neighbor]['dist_id'].item()) == drawzone}
-            print(f"The district has {len(neighbors_so_far)} neighbors so far")
+                                if int(df.loc[df.loc_prec == neighbor]['dist_id'].item()) == drawzone} #this can sometimes reduce neighbors_so_far to 0 which shouldn't be possible
+            #some Columbia County precincts break this, raising ValueErorr("can only convert an array of size 1 to a Python scalar")
+            #So does Lincoln,Faith Temple Of Linc
+            print(f"The district has {len(neighbors_so_far)} allowed neighbors so far") #this can evaluate to 0 on the first precinct of a new district
+            
             curr_precinct = random.choice(tuple(neighbors_so_far)) #and this broke for 'Hall, Gillsville'
-            #curr_index = int(df.index[df['loc_prec'] == curr_precinct].item()) #need .item() to keep its type as int to allow sets to work. is that same as iloc[0]?
+
         print(f"We continue with: {curr_precinct}")
 
     #once district is at full population:
