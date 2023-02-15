@@ -627,8 +627,8 @@ def draw_recursive_region(df, target_pop, id, drawzone):
     #neighbors_so_far = []
     neighbors_so_far = set()
 
-    curr_index = random.choice(tuple(drawzone_indices)) #maybe just don't use indices if i can refactor to that.
-    curr_precinct = df.loc[curr_index, 'loc_prec']
+    start_index = random.choice(tuple(drawzone_indices)) #maybe just don't use indices if i can refactor to that.
+    curr_precinct = df.loc[start_index, 'loc_prec']
     print(f"We're gonna start at: {curr_precinct}")
 
     #this is currently taking 10 minutes to get through the first halving. need to speed up
@@ -640,8 +640,8 @@ def draw_recursive_region(df, target_pop, id, drawzone):
         draw_into_district(df, curr_precinct, id)
         print(f"Current district population: {population_sum(df, 'tot', district=id)}")
         #make sure you can't draw the same precinct twice
-        drawzone_indices.remove(curr_index)
-        dist_so_far.add(curr_index)
+        #drawzone_indices.remove(curr_index)
+        #dist_so_far.add(curr_index)
 
         #do the neighbors_so_far stuff now in case you need it later
         curr_neighbors = set(df[df.loc_prec == curr_precinct]['neighbors'].item().tolist())
@@ -649,14 +649,15 @@ def draw_recursive_region(df, target_pop, id, drawzone):
 
         #it should draw into a neighbor of this district where possible, because that's much faster
         #and only look at allowable neighbors of entire district if it can't do that
-        this_precinct_neighbors = df.loc[curr_index, 'neighbors']
+        #refactor without curr_index:
+        this_precinct_neighbors = df.loc[df.loc_prec == curr_precinct]['neighbors'].item() #you should be able to refactor this without curr_index
         #print(this_precinct_neighbors)
         #print(f"This district has {len(this_precinct_neighbors)} neighbors")
         valid_neighbors_this_precinct = {neighbor for neighbor in this_precinct_neighbors
                             if int(df.loc[df.loc_prec == neighbor]['dist_id'].iloc[0]) == drawzone} #This line seems to break, uniquely, for "Columbia,New Life Church"
         if len(valid_neighbors_this_precinct) > 0:
             curr_precinct = random.choice(tuple(valid_neighbors_this_precinct))
-            curr_index = int(df.index[df['loc_prec'] == curr_precinct].item()) #This line also breaks for "Columbia,New Life Church"
+            #curr_index = int(df.index[df['loc_prec'] == curr_precinct].item()) #This line also breaks for "Columbia,New Life Church"
             #"ValueError("can only convert an array of size 1 to a Python scalar")"#
         else:
             print("This precinct has no neighbors it can draw into. Jump elsewhere")
@@ -666,14 +667,14 @@ def draw_recursive_region(df, target_pop, id, drawzone):
                                 if int(df.loc[df.loc_prec == neighbor]['dist_id'].item()) == drawzone}
             print(f"The district has {len(neighbors_so_far)} neighbors so far")
             curr_precinct = random.choice(tuple(neighbors_so_far)) #and this broke for 'Hall, Gillsville'
-            curr_index = int(df.index[df['loc_prec'] == curr_precinct].item()) #need .item() to keep its type as int to allow sets to work. is that same as iloc[0]?
+            #curr_index = int(df.index[df['loc_prec'] == curr_precinct].item()) #need .item() to keep its type as int to allow sets to work. is that same as iloc[0]?
         print(f"We continue with: {curr_precinct}")
 
     #once district is at full population:
     #TODO: code in some level of allowable deviation, perhaps with backtracking
     print("Target population met or exceeded. Ending district draw")    
     return None 
-        
+    
 
 
 ###END RECURSIVE STUFF###
