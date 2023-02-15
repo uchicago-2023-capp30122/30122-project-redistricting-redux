@@ -627,13 +627,14 @@ def draw_recursive_region(df, target_pop, id, drawzone):
     #neighbors_so_far = []
     neighbors_so_far = set()
 
-    curr_index = random.choice(tuple(drawzone_indices))
+    curr_index = random.choice(tuple(drawzone_indices)) #maybe just don't use indices if i can refactor to that.
     curr_precinct = df.loc[curr_index, 'loc_prec']
     print(f"We're gonna start at: {curr_precinct}")
 
     #this is currently taking 10 minutes to get through the first halving. need to speed up
     #Make the population sum a giant while loop
     while population_sum(df, 'tot', district=id) <= target_pop:
+
         #assert df.loc[curr_index, 'dist_id'] == drawzone
         print(f"Now drawing {curr_precinct} into district")
         draw_into_district(df, curr_precinct, id)
@@ -642,53 +643,30 @@ def draw_recursive_region(df, target_pop, id, drawzone):
         drawzone_indices.remove(curr_index)
         dist_so_far.add(curr_index)
 
+        #do the neighbors_so_far stuff now in case you need it later
+        curr_neighbors = set(df[df.loc_prec == curr_precinct]['neighbors'].item().tolist())
+        neighbors_so_far = neighbors_so_far.union(curr_neighbors)
+
         #it should draw into a neighbor of this district where possible, because that's much faster
         #and only look at allowable neighbors of entire district if it can't do that
         this_precinct_neighbors = df.loc[curr_index, 'neighbors']
-        print(this_precinct_neighbors)
-        print(f"This district has {len(this_precinct_neighbors)} neighbors")
+        #print(this_precinct_neighbors)
+        #print(f"This district has {len(this_precinct_neighbors)} neighbors")
         valid_neighbors_this_precinct = {neighbor for neighbor in this_precinct_neighbors
-                            if int(df.loc[df.loc_prec == neighbor]['dist_id'].item()) == drawzone}}
-
-        #look at allowable neighbors of ENTIRE DISTRICT
-        #maybe store that as this function continues
-        #gonna need an altered version of all_allowed_neighbors_of_district()
-        #can you use "in set" as a boolean filter? if so, use df.index in dist_so_far or similar
-        #curr_neighbors = df[df.loc_prec == curr_precinct]['neighbors'].item().tolist()
-        curr_neighbors = set(df[df.loc_prec == curr_precinct]['neighbors'].item().tolist())
-        #print(curr_neighbors)
-        neighbors_so_far = neighbors_so_far.union(curr_neighbors)
-        #reduce to unique values
-        #neighbors_so_far = list(set(neighbors_so_far))
-        #print(neighbors_so_far)
-        #neighbors_so_far = np.unique(neighbors_so_far) #or just do unique
-        #(np.concatenate(list(df[df.dist_id == id]['neighbors'])))
-
-        #THIS USES NEIGHBORS_SO_FAR INSTEAD OF MAKING A NEW ONE
-        #this is probably slow because it mixes looping and pandas iteration
-        #consider doing something else like set intersection that is faster
-        neighbors_so_far = {neighbor for neighbor in neighbors_so_far
-                            if int(df.loc[df.loc_prec == neighbor]['dist_id'].item()) == drawzone}
-        print(len(neighbors_so_far))
-        #THIS IS SLOWER
-        # allowed_neighbors = {neighbor for neighbor in neighbors_so_far
-        #                      if df.loc[df.loc_prec == neighbor]['dist_id'].item() == drawzone}
-
-        #THIS IS ACTUALLY FASTER THAN THE 2 LINE COMPREHENSION
-        # allowed_neighbors = set()
-        # #make this an elegant comprehension too -- just get all neighbors whose corresponding dist_id == drawzone
-        # for nabe in neighbors_so_far:
-        #     #print(nabe)
-        #     #if df.loc[df.loc_prec == nabe]['dist_id'].item() == drawzone:
-        #     #this hit an error after drawing "drawing Columbia,New Life Church into district"
-        #     nabe_index = int(df.index[df['loc_prec'] == nabe].item()) #jankily get index corresponding to loc_prec
-        #     if df.loc[nabe_index, 'dist_id'] == drawzone:
-        #         allowed_neighbors.add(nabe)
-
-        #pick next precinct randomly from allowed neighbors of ENTIRE DISTRICT
-        curr_precinct = random.choice(tuple(neighbors_so_far))
-        #curr_precinct = random.choice(tuple(allowed_neighbors))
-        curr_index = int(df.index[df['loc_prec'] == curr_precinct].item()) #need .item() to keep its type as int to allow sets to work. is that same as iloc[0]?
+                            if int(df.loc[df.loc_prec == neighbor]['dist_id'].iloc[0]) == drawzone} #This line seems to break, uniquely, for "Columbia,New Life Church"
+        if len(valid_neighbors_this_precinct) > 0:
+            curr_precinct = random.choice(tuple(valid_neighbors_this_precinct))
+            curr_index = int(df.index[df['loc_prec'] == curr_precinct].item()) #This line also breaks for "Columbia,New Life Church"
+            #"ValueError("can only convert an array of size 1 to a Python scalar")"#
+        else:
+            print("This precinct has no neighbors it can draw into. Jump elsewhere")
+            #this makes the program hang for a bit, why
+            #look at allowable neighbors of ENTIRE DISTRICT, reduced to unique values
+            neighbors_so_far = {neighbor for neighbor in neighbors_so_far
+                                if int(df.loc[df.loc_prec == neighbor]['dist_id'].item()) == drawzone}
+            print(f"The district has {len(neighbors_so_far)} neighbors so far")
+            curr_precinct = random.choice(tuple(neighbors_so_far)) #and this broke for 'Hall, Gillsville'
+            curr_index = int(df.index[df['loc_prec'] == curr_precinct].item()) #need .item() to keep its type as int to allow sets to work. is that same as iloc[0]?
         print(f"We continue with: {curr_precinct}")
 
     #once district is at full population:
