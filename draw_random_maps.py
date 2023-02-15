@@ -359,16 +359,8 @@ def cleanup_map(df):
     be a way to break it into helper functions that all target specific kinds of
     subdistricts
     '''
-    #TODO: Fix "orphaned areas" surrounded by a district -- if there is a precinct
-    #or cluster of precincts whose dist_id is None, and all surrounding area has 
-    #the same dist_id, assign the orphaned precincts to the district surrounding them.
-    
-    #TODO possibly, if we care: Fix "orphaned districts" surrounded entirely by
-    #a different district. (Note: This is one of the most obvious failure modes
-    #by which draw_random_state_map produces districts that are way too small in
-    #population and impossible to fill. If you can, adjust THAT function so its
-    # "random" starting points are not trapped inside a different district --
-    # or do the "orphaned areas" fix BEFORE starting to draw the next one
+    #Ensure that every hole in map is drawn into some district. See documentation
+    fill_district_holes(df)
 
     #TODO: "population swaps" -- if there is a district whose total population is
     #too large (wthin something like 1% of even), and it borders a district whose
@@ -422,7 +414,7 @@ def fill_district_holes(df):
         draw_into_district(df, valid_hole, id)
         print("Hole filled")
 
-def fill_district_holes2(df):
+def fill_district_holes2(df, map_each_step = False):
     '''
     Screw it, we're just starting over.
     It's not efficient to generate all teh holes and then go one by once through
@@ -459,10 +451,9 @@ def fill_district_holes2(df):
                 #pop-swap stuff to come later less onerous.
                 neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
                 draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
-        print(f"Exporting map for go-round nummber {go_rounds}...")
-        plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
-
-
+        if map_each_step:
+            print(f"Exporting map for go-round nummber {go_rounds}...")
+            plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
 
 
 def find_neighboring_districts(df, lst):
@@ -493,7 +484,221 @@ def map_stats_table(df):
     Possibly exports as csv for replicability.
     '''
     #TODO: Implement this function
-    pass
+    #i want to use .groupby(['dist_id']) but it gives me 61 columns instead of
+    #14 for some reason
+
+#####2/14: WAIT. WHAT IF I'VE BEEN GOING ABOUT THIS ALL WRONG.####
+
+def draw_recursive_map(df, target_pop, highest=14, drawzone=None):
+    '''
+    Okay, I'm gonna spam these thoughts out so I have them, and then pare back
+    to a docstring for once.
+    What's annoying about the true "chaos mode" random districts I've been drawing
+    is that I have to correct them later -- they can have holes, fail to cover
+    the whole map, require really complex and nasty precinct transfers that could
+    be computationally expensive, etc.
+    Maybe there's a way to solve a lot of those problems in one swoop, using a 
+    recursive approach that divides the state into halves (or thereabout) and then
+    draws smaller subsections within each subsection until the state is full.
+    This should prevent the "It's impossible to keep drawing" scenario from ever 
+    occurring, because each subdivision is "as if new" -- so there's always going
+    to be empty space within the smallest yet-made subdivision for a new, even
+    smaller district to grow within.
+
+    Here's how it'll go:
+        -All districts start with a backdrop ['dist_id'] of None.
+        -if backdrop is None:
+            -fill the entire map with 'dist_id' 1 (using vectorized pandas)
+            -call this function again immediately
+        -if start == max:
+            -Do nothing! You should already have a fully populated district of this
+            dist_id by default.
+        -else:
+            -calculate the median, rounded up, between 1 and the total number of
+            districts to draw. (For Georgia, n = 14, so (n // 2) + 1 = 8.) 
+            -Tracking against total population, fill as close to *exactly half* of
+            the map as possible with the median value, using draw_random_district
+            to select that half randomly from a random starting point. 
+            (At first pass, this should result in a GA map where half the population
+            lives in 'dist_id' 1 and half lives in 'dist_id' 8.)
+            -Call this function again twice, once with (1, n // 2) as the district numbers
+            and a backdrop of 1; a second time with (n // 2 + 1, 14) as the district numbers
+            and a backdrop of that upper median (in this case, 8). (Sure seems like 'start' and 'backdrop' can be just one
+            input parameter.)
+                -The population to draw towards should be divided proportionally:
+                    -if the current number of districts to draw is even, each new call 
+                    inherits a tot_pop of the old tot_pop divided by 2.
+                    -if the current number of districts to draw is odd, the first call
+                    inherits a tot_pop of the old tot_pop times (upper median/tot_pop),
+                    and the second inherits a tot_pop of the old tot_pop times (lower
+                    median/tot_pop). So with n = 7 districts to draw, the first call
+                    draws 4 and the second call draws 3.
+        
+        The main advantage of this is that, as each draw_random_district call walks around,
+        it is bounded by the backdrop dist_id -- if you're drawing district 5 at the second
+        generation of the call tree, you can't cross over into or overwrite district 8.
+        I can code in a hard barrier where it either tells you "You can't go that way" when
+        it tries to escape the bounds of the backdrop dist_id, or more ideally simply never
+        allows for attempting it. This may require modifying the behavior of, or creating 
+        different versions of, some of the neighbor calculation functions I've already made.
+
+        One downside of this is that splits high in the tree may make other desirable
+        traits like VRA compliance impossible (i.e. if each subsection of the state has
+        too small a %Black VAP to create a majority-Black district)
+
+        A downside of both methods is that, due to their reliance on touches() and overlap()
+        geopandas methods, they fail for states with non-contiguous landmasses (e.g. Virginia
+        with the tip of the Delmarva peninsula, Michigan with its Upper Peninsula, Hawai'i
+        with its non-connected islands). Worth thinking about how to handle this.
+    '''
+    #Initial call
+    if drawzone is None:
+        print("Assigning full map to dist_id 1...")
+        df['dist_id'] = 1
+        #print(df.head())
+
+        #start the division process
+        draw_recursive_map(df, int(target_pop / 2), highest, drawzone=1)
+
+    if drawzone == highest:
+        print(f"District {drawzone} is fully set without needing to draw more")
+        return None #end evaluation
+
+    n_dists = highest - drawzone + 1 #for GA to start, this is 14
+    upper_median = n_dists // 2 + 1 #for GA to start, this is 8
+    lower_median = n_dists // 2 #for GA to start, this is 7
+
+    #cover half the bounding area with new district number
+    #you may have to modify the base function so it doesn't go out of bounds
+    print(f"Now drawing half of drawzone {drawzone} into district {upper_median}...")
+    time.sleep(0.5)
+    draw_recursive_region(df, target_pop, upper_median, drawzone)
+
+    #if n_dists % 2 == 0: #even number, divide evenly
+    #actually it shouldn't matter if this is even or not
+    #in regions with an odd number of districts left, the smaller call comes first
+    #oh no it does matter because it affects target pop
+    if n_dists % 2 == 0:
+        left_target_pop = right_target_pop = int(target_pop / 2)
+    else:
+        left_target_pop = target_pop * (lower_median / highest)
+        right_target_pop = target_pop * (upper_median / highest)
+
+    draw_recursive_map(df, left_target_pop, lower_median, drawzone=1) #for VA this is 1-5 (5 dists), for GA this is 1-7 (7 dists)
+    draw_recursive_map(df, right_target_pop, highest, drawzone=upper_median) #for VA this is 6-11 (6 dists), for GA this is 8-14 (7 dists)
+
+
+def draw_recursive_region(df, target_pop, id, drawzone):
+    '''
+    Using the region currently marked by a preexisting dist_id as a drawzone,
+    creates a new region with a new dist_id, overwriting an area whose population
+    is half that of the drawzone. Selects a random starting precinct in the
+    drawzone, then uses draw_into_district to overwrite its old drawzone dist_id
+    with the new one. Then moves about to random eligible neighboring precincts in the
+    drawzone, repeatedlying call draw_into_district until that target population
+    is reached.
+
+    Terminates if the district reaches a target population value, or if there
+    are no eligible empty neighboring precincts to keep drawing into. (But the
+    latter should never happen.)
+
+    Inputs:
+        -df (geopandas GeoDataFrame): 
+        -target_pop (int): target population of each district. When drawing a 
+        state map, this will be 1/n, where n is the total population of the state
+        as measured in the data.
+        -id (int): The label to give precincts within the district.
+        For a state map, this will usually be 1 for the first district drawn,
+        2 for the second, etc. but the recursive procedure won't draw them in
+        that order.
+        -drawzone (int): the current precinct serving as the bounds for the new region.
+        -curr_precinct(None): You probably don't need to input this actually
+    Returns: None, modifies df in-place
+    '''
+    #get all the indices where dist_id == drawzone.
+    #then sample one and get its loc_prec.
+    #inspiration: https://stackoverflow.com/questions/21800169/python-pandas-get-index-of-rows-where-column-matches-certain-value
+    drawzone_list = df.index[df['dist_id'] == drawzone].tolist()
+    #print([type(i) for i in drawzone_list])
+    drawzone_indices = set(drawzone_list)
+    #print(drawzone_indices)
+    dist_so_far = set()
+    #put neighbors_so_far up here? and only add curr_precinct's neighbors to it at a time
+    #neighbors_so_far = []
+    neighbors_so_far = set()
+
+    curr_index = random.choice(tuple(drawzone_indices))
+    curr_precinct = df.loc[curr_index, 'loc_prec']
+    print(f"We're gonna start at: {curr_precinct}")
+
+    #this is currently taking 10 minutes to get through the first halving. need to speed up
+    #Make the population sum a giant while loop
+    while population_sum(df, 'tot', district=id) <= target_pop:
+        #assert df.loc[curr_index, 'dist_id'] == drawzone
+        print(f"Now drawing {curr_precinct} into district")
+        draw_into_district(df, curr_precinct, id)
+        print(f"Current district population: {population_sum(df, 'tot', district=id)}")
+        #make sure you can't draw the same precinct twice
+        drawzone_indices.remove(curr_index)
+        dist_so_far.add(curr_index)
+
+        #it should draw into a neighbor of this district where possible, because that's much faster
+        #and only look at allowable neighbors of entire district if it can't do that
+        this_precinct_neighbors = df.loc[curr_index, 'neighbors']
+        print(this_precinct_neighbors)
+        print(f"This district has {len(this_precinct_neighbors)} neighbors")
+        valid_neighbors_this_precinct = {neighbor for neighbor in this_precinct_neighbors
+                            if int(df.loc[df.loc_prec == neighbor]['dist_id'].item()) == drawzone}}
+
+        #look at allowable neighbors of ENTIRE DISTRICT
+        #maybe store that as this function continues
+        #gonna need an altered version of all_allowed_neighbors_of_district()
+        #can you use "in set" as a boolean filter? if so, use df.index in dist_so_far or similar
+        #curr_neighbors = df[df.loc_prec == curr_precinct]['neighbors'].item().tolist()
+        curr_neighbors = set(df[df.loc_prec == curr_precinct]['neighbors'].item().tolist())
+        #print(curr_neighbors)
+        neighbors_so_far = neighbors_so_far.union(curr_neighbors)
+        #reduce to unique values
+        #neighbors_so_far = list(set(neighbors_so_far))
+        #print(neighbors_so_far)
+        #neighbors_so_far = np.unique(neighbors_so_far) #or just do unique
+        #(np.concatenate(list(df[df.dist_id == id]['neighbors'])))
+
+        #THIS USES NEIGHBORS_SO_FAR INSTEAD OF MAKING A NEW ONE
+        #this is probably slow because it mixes looping and pandas iteration
+        #consider doing something else like set intersection that is faster
+        neighbors_so_far = {neighbor for neighbor in neighbors_so_far
+                            if int(df.loc[df.loc_prec == neighbor]['dist_id'].item()) == drawzone}
+        print(len(neighbors_so_far))
+        #THIS IS SLOWER
+        # allowed_neighbors = {neighbor for neighbor in neighbors_so_far
+        #                      if df.loc[df.loc_prec == neighbor]['dist_id'].item() == drawzone}
+
+        #THIS IS ACTUALLY FASTER THAN THE 2 LINE COMPREHENSION
+        # allowed_neighbors = set()
+        # #make this an elegant comprehension too -- just get all neighbors whose corresponding dist_id == drawzone
+        # for nabe in neighbors_so_far:
+        #     #print(nabe)
+        #     #if df.loc[df.loc_prec == nabe]['dist_id'].item() == drawzone:
+        #     #this hit an error after drawing "drawing Columbia,New Life Church into district"
+        #     nabe_index = int(df.index[df['loc_prec'] == nabe].item()) #jankily get index corresponding to loc_prec
+        #     if df.loc[nabe_index, 'dist_id'] == drawzone:
+        #         allowed_neighbors.add(nabe)
+
+        #pick next precinct randomly from allowed neighbors of ENTIRE DISTRICT
+        curr_precinct = random.choice(tuple(neighbors_so_far))
+        #curr_precinct = random.choice(tuple(allowed_neighbors))
+        curr_index = int(df.index[df['loc_prec'] == curr_precinct].item()) #need .item() to keep its type as int to allow sets to work. is that same as iloc[0]?
+        print(f"We continue with: {curr_precinct}")
+
+    #once district is at full population:
+    #TODO: code in some level of allowable deviation, perhaps with backtracking
+    print("Target population met or exceeded. Ending district draw")    
+    return None 
+        
+
+
+###END RECURSIVE STUFF###
 
 if __name__ == '__main__':
     ga_data = startup()
