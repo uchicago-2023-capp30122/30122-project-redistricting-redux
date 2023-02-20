@@ -340,7 +340,7 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
 
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
     filepath = 'maps/ga_testmap_' + timestamp
-    plt.pyplot.savefig(filepath, dpi=600) 
+    plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
 #Multiple possible kinds of plot:
     #-state map (choropleth colored by Kemp-Abrams or Biden-Trump margin)
@@ -584,11 +584,13 @@ def draw_recursive_map(df, target_pop, highest=14, drawzone=None):
         left_target_pop = target_pop * (lower_median / highest)
         right_target_pop = target_pop * (upper_median / highest)
 
+    #reversing these calls might fix the issue where you can be drawing district 4 and have a place surrounded by district 8
+    #no, the issue is that the left calls drawzone is not always 1. it changes
     draw_recursive_map(df, left_target_pop, lower_median, drawzone=1) #for VA this is 1-5 (5 dists), for GA this is 1-7 (7 dists)
     draw_recursive_map(df, right_target_pop, highest, drawzone=upper_median) #for VA this is 6-11 (6 dists), for GA this is 8-14 (7 dists)
 
 
-def draw_recursive_region(df, target_pop, id, drawzone):
+def draw_recursive_region(df, target_pop, id, drawzone, debug_mode=False):
     '''
     Using the region currently marked by a preexisting dist_id as a drawzone,
     creates a new region with a new dist_id, overwriting an area whose population
@@ -660,6 +662,12 @@ def draw_recursive_region(df, target_pop, id, drawzone):
             #So does Lincoln,Faith Temple Of Linc
             print(f"The district has {len(neighbors_so_far)} allowed neighbors so far") #this can evaluate to 0 on the first precinct of a new district
             
+            if debug_mode:
+                for neighbor in neighbors_so_far:
+                    df[df.loc_prec == neighbor]['dist_id'] = 999 #highlight all neighbors
+                    plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
+                return None
+
             curr_precinct = random.choice(tuple(neighbors_so_far)) #and this broke for 'Hall, Gillsville'
 
         print(f"We continue with: {curr_precinct}")
@@ -669,9 +677,21 @@ def draw_recursive_region(df, target_pop, id, drawzone):
     print("Target population met or exceeded. Ending district draw")    
     return None 
     
-
-
 ###END RECURSIVE STUFF###
+
+
+def export_df_to_file(df):
+    '''
+    Exports your GeoDataFrame (with labeled districts, if you labeled them) to
+    a file for reupload or statistical calculation.
+    Inputs:
+        -df (geopandas GeoFataFrame)
+    Returns: None
+    '''
+    timestamp = datetime.now().strftime("%m%d-%H%M%S")
+    filepath = 'test_dfs/ga_testdf_' + timestamp + ".shp"
+    df.to_file(filepath) #can make this GeoJSON instead if we want the convenience of one file
+
 
 if __name__ == '__main__':
     ga_data = startup()
