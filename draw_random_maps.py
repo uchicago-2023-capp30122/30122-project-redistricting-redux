@@ -143,7 +143,7 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         print(f"We continue with: {curr_precinct}")
 
     if df.loc[curr_index, 'dist_id'] is None:
-        print(f"Now drawing {curr_precinct} into district")
+        #print(f"Now drawing {curr_precinct} into district")
         draw_into_district(df, curr_precinct, id)
         print(f"Current district population: {population_sum(df, 'tot', district=id)}")
 
@@ -319,50 +319,11 @@ def get_all_holes(df):
     '''
     return df.loc[df['dist_id'].isnull()]
 
-def fill_district_holes(df):
-    '''
-    District 'cleanup' helper function. If there are orphan precincts surrounded
-    on all sides by a single district, assigns the orphaned precinct to
-    that surrounding district.
-    Inputs:
-        -df (GeoPandas GeoDataFrame)
-    Returns: None, modifies df in place
-    '''
-    #find precincts not yet drawn into a district
-    holes = df.loc[df['dist_id'].isnull()]
-    #print(holes)
-    valid_holes = [] #list of district names to be drawn
-    
-    #narrow down those precincts to ones whose neighbors all have the same dist_id
-    #OKAY NO. IT'S WAY TOO INEFFICIENT TO CALL THIS SEPARATELY FOR DISTINCT FUNCTIONS
-    #FIX THAT
-    for index, hole in holes.iterrows():
-        districts_around_hole = find_neighboring_districts(df, hole['neighbors'])
-        print(districts_around_hole)
-        if len(districts_around_hole) == 1 and id in districts_around_hole:
-            print("Just this district")
-            valid_holes.append(hole['loc_prec'])
-        #Let's try adding precincts that are adjoining this precinct and no others
-        elif (len(districts_around_hole) == 2 and 
-              id in districts_around_hole and
-              None in districts_around_hole):
-            print("Just this district and None")
-            valid_holes.append(hole['loc_prec']) 
 
-    print(f"The holes in this district are:{valid_holes}")
-
-    for valid_hole in valid_holes:
-        draw_into_district(df, valid_hole, id)
-        print("Hole filled")
-
-def fill_district_holes2(df, map_each_step=False):
+def fill_district_holes(df, map_each_step=False):
     '''
-    Screw it, we're just starting over.
-    It's not efficient to generate all teh holes and then go one by once through
-    dist_ids.
-    Better to generate all the holes, then iterate across all holes and do
+    Generate all the holes, then iterate across all holes and do
     something to them.
-    
     Then maybe surround it with a while loop
     FINISH DOCSTRING
     Inputs:
@@ -384,13 +345,16 @@ def fill_district_holes2(df, map_each_step=False):
             elif len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
                 neighbor_dist_id = int(list(real_dists_ard_hole)[0]) #extract that district id
                 #THIS WILL BREAK IF YOU GIVE YOUR DISTRICTS ANY ID OTHER THAN INTEGERS
-                print(f"Now drawing {hole['loc_prec']} into district {neighbor_dist_id}...")
+                #print(f"Now drawing {hole['loc_prec']} into district {neighbor_dist_id}...")
                 draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
             elif len(real_dists_ard_hole) >= 2: #i.e. if this could go into one of two other districts
                 #a cleaner way to do this might involve finding the neighboring district
                 #with least population and always drawing into that, so as to make the
                 #pop-swap stuff to come later less onerous.
+                #neighbor_pops_dict = {id: population_sum(df, 'tot', id) for id in real_dists_ard_hole}
+                #print(neighbor_pops_dict)
                 neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
+                #print(f"drawing into district {neighbor_dist_id} tho")
                 draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
         if map_each_step:
             print(f"Exporting map for go-round nummber {go_rounds}...")
