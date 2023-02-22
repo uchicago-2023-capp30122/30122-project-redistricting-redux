@@ -361,6 +361,67 @@ def fill_district_holes(df, map_each_step=False):
             plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
 
 
+def mapwide_pop_swap(df):
+    '''
+    If we're going to get to close-to-even populations, this is the approach
+    I think I can do with my current skills.
+
+    Inputs:
+        -df (geopandas GeoDataFrame): every precinct should have a dist_id
+    '''
+    #assert (the dist_id column has no Nones in it)
+    target_pop = target_dist_pop(df, n=max(df['dist_id']))
+
+    #put this all in a while loop until the actual populations of each district
+    #are within some balanced range
+
+    #interior_count = 0
+    #border_count = 0
+    for _, precinct in df.iterrows():
+        #generate list of precinct neighbors, and list of districts those neighbors are in
+        neighboring_dists = find_neighboring_districts(df, precinct['neighbors'])
+        #print(neighboring_dists)
+
+        if len(neighboring_dists) == 1 and tuple(neighboring_dists)[0] == precinct['dist_id']:
+            #this is not on a district border
+            pass #is there a way to only iterate through borders upfront? saves a lot of computation time
+            #print("This is not on a district border")
+            #interior_count += 1
+        else: #if this precinct has neighbors in other districts:
+            #print("This IS ON A DISTRICT BORDER")
+            #border_count += 1
+
+            #get population of this precinct's district
+            this_prec_dist_pop = population_sum(df, 'tot', precinct['dist_id'])
+            #print(this_prec_dist_pop)
+
+            #get current population of each neighboring district with below-target population
+            proper_neighbors = {dist : population_sum(df, 'tot', dist) 
+                                for dist in neighboring_dists 
+                                if dist != precinct['dist_id']
+                                and population_sum(df, 'tot', dist) < target_pop}
+            if len(proper_neighbors) == 0: #all neighbors are of higher population
+                continue
+            else:
+                print(this_prec_dist_pop)
+                print(proper_neighbors)
+                if this_prec_dist_pop > target_pop:
+                    #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
+                    smallest_neighbor = [k for k,v in proper_neighbors.items() if v == min(proper_neighbors.values())][0] #JANK
+                    print(smallest_neighbor)
+                    print(f"Moving {precinct['loc_prec']} and its {precinct['tot']} people from {precinct['dist_id']} to {smallest_neighbor}...")
+                    #reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
+                    draw_into_district(df, precinct['loc_prec'], smallest_neighbor)
+
+            #print(f"district id is: {precinct['dist_id']}")
+
+    print(print_district_pops(df, max(df['dist_id'])))
+
+            #check current population of each neighboring district
+            #if the district this precinct is in is overpopulated AND at least one neighbor is underpopulated:
+                #reassign this precinct's dist_id to that of its least populated neighbor
+    #print(interior_count, border_count)
+
 def find_neighboring_districts(df, lst):
     '''
     Helperizing this function. Takes in a list of precinct names, and 
@@ -390,9 +451,9 @@ def map_stats_table(df):
     '''
     stats_table = df.groupby(['dist_id'])
     return stats_table
-    #gives me 64 rows instead of 14 for some reason
+    #gives me 64 rows instead of 14 for some reason. DEBUG
 
-#####2/14: WAIT. WHAT IF I'VE BEEN GOING ABOUT THIS ALL WRONG.####
+
 
 def draw_recursive_map(df, target_pop, highest=14, drawzone=None):
     '''
@@ -586,14 +647,11 @@ def draw_recursive_region(df, target_pop, id, drawzone, debug_mode=False):
 
 def print_district_pops(df, n):
     '''Prints the population of the districts from 1 to n'''
-    #pop_df = gpd.GeoDataFrame(columns = ['dist_id', 'tot'])
-
     pops_lst = []
     for i in range(1, n+1):
         this_pop = [i, population_sum(df, 'tot', district=i)]
         pops_lst.append(this_pop)
         #print(f"{i}: {population_sum(df, 'tot', district=i)}")
-
     return pops_lst
 
 def export_df_to_file(df):
@@ -605,8 +663,10 @@ def export_df_to_file(df):
     Returns: None
     '''
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = 'test_dfs/ga_testdf_' + timestamp + ".shp"
+    filepath = 'test_dfs/ga_testdf_' + timestamp + ".geojson"
     df.to_file(filepath) #can make this GeoJSON instead if we want the convenience of one file
+    print(f"{df} exported to {filepath}")
+    #"ValueError: Invalid field type <class 'numpy.ndarray'>"
 
 
 if __name__ == '__main__':
