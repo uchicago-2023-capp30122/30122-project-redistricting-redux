@@ -222,7 +222,7 @@ def all_allowed_neighbors_of_district(df, id):
 
     return allowed_neighbors
 
-def draw_random_state_map(df, num_districts):
+def draw_random_state_map(df, num_districts, seed=2023, export=False):
     '''
     Uses draw_random_district() to draw a map of random districts of equal
     population for the whole state.
@@ -233,7 +233,7 @@ def draw_random_state_map(df, num_districts):
         for state
         -num_districts (int): Number of districts to draw (for Georgia, that's 14)
     '''
-    #TODO: Finish this function
+    random.seed(seed) 
     target_pop = target_dist_pop(df, num_districts)
     for id in range(1, num_districts + 1):
         print(f"Now drawing district {id}...")
@@ -242,9 +242,13 @@ def draw_random_state_map(df, num_districts):
         #print(f"Filling holes in district {id}...")
         #fill_district_holes(df, id)
 
+    #TODO: Add map cleanup here
+
     #EXPORT SOMETHING SOMEWHERE SO MAP IS REPRODUCIBLE
     #maybe do something to add "orphan" precincts to the least populous nearby
     #district all at once at the end should be faster?
+    if export:
+        export_df_to_file(df)
 
 ### PLOTTING FUNCTIONS ###
 
@@ -351,7 +355,7 @@ def fill_district_holes(df):
         draw_into_district(df, valid_hole, id)
         print("Hole filled")
 
-def fill_district_holes2(df, map_each_step = False):
+def fill_district_holes2(df, map_each_step=False):
     '''
     Screw it, we're just starting over.
     It's not efficient to generate all teh holes and then go one by once through
@@ -420,9 +424,9 @@ def map_stats_table(df):
 
     Possibly exports as csv for replicability.
     '''
-    #TODO: Implement this function
-    #i want to use .groupby(['dist_id']) but it gives me 61 columns instead of
-    #14 for some reason
+    stats_table = df.groupby(['dist_id'])
+    return stats_table
+    #gives me 64 rows instead of 14 for some reason
 
 #####2/14: WAIT. WHAT IF I'VE BEEN GOING ABOUT THIS ALL WRONG.####
 
@@ -616,6 +620,17 @@ def draw_recursive_region(df, target_pop, id, drawzone, debug_mode=False):
     
 ###END RECURSIVE STUFF###
 
+def print_district_pops(df, n):
+    '''Prints the population of the districts from 1 to n'''
+    #pop_df = gpd.GeoDataFrame(columns = ['dist_id', 'tot'])
+
+    pops_lst = []
+    for i in range(1, n+1):
+        this_pop = [i, population_sum(df, 'tot', district=i)]
+        pops_lst.append(this_pop)
+        #print(f"{i}: {population_sum(df, 'tot', district=i)}")
+
+    return pops_lst
 
 def export_df_to_file(df):
     '''
