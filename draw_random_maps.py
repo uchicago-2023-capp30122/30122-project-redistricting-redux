@@ -20,14 +20,10 @@ def startup():
     fp = "openprecincts_ga_2018/2018Precincts.shp"
     ga_data = gpd.read_file(fp)
     print("Georgia 2018 shapefile data imported")
-    #ga_data['neighbors'] = None
     print("Calculating district neighbors:")
     set_precinct_neighbors(ga_data)
     print("District neighbors calculated")
     ga_data['dist_id'] = None #use .isnull() to select all of these
-
-    #This should write the geodataframe *back out* so you don't have to run it
-    #every time
 
     return ga_data
 
@@ -91,13 +87,11 @@ def set_precinct_neighbors(df):
             neighbors = np.union1d(neighbors, overlap)
             #neighbors = neighbors.tolist() #may help with import/export (update: it doesn't; 
             #pandas casts list to nparray to store it in df. darn
-
-        #print(neighbors)
         df.at[index, 'neighbors'] = neighbors
         if index % 100 == 0:
             print(f"Neighbors for precinct {index} calculated")
 
-    #print(df['neighbors'])
+
 
 def draw_into_district(df, precinct, id):
     '''
@@ -114,13 +108,9 @@ def draw_into_district(df, precinct, id):
 
     Returns: Nothing, modifies df in-place
     '''
-    #warning: there are three fewer loc_prec than rows in the 2018 dataset
     df.loc[df['loc_prec'] == precinct, 'dist_id'] = id
 
 
-
-#can you set a keyword argument to output of another function?
-#i.e. target_pop = target_dist_pop(df, 14)?
 def draw_chaos_district(df, target_pop, id, curr_precinct=None):
     '''
     Draw a random district. Select a random starting precinct, use draw_into_district
@@ -144,7 +134,6 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
     '''
     if population_sum(df, 'tot', district=id) >= target_pop:
         print("Target population met or exceeded. Ending district draw")
-        #time.sleep(0.5)
         return None #"break"
 
     if curr_precinct is None:
@@ -191,8 +180,6 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         dist_so_far = [] + list(df[df.dist_id == id]['loc_prec'])
         #debug attempt: adding empty list so it's always a list
 
-        #assert dist_so_far is not None, "dist_so_far is None"
-
         #handle the error if there are no valid neighbors and it's the first precinct for a new district
         if dist_so_far is None or len(dist_so_far) == 0:
             print("It looks like you can't start drawing here. Restarting somewhere else...")
@@ -208,10 +195,9 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
             time.sleep(0.2)
             return None
 
-        #this picks from a neighbor that is guaranteed to be empty and allowed
+        #pick a neighbor that is guaranteed to be empty and allowed
         unstick_precinct = random.choice(all_allowed_neighbors_of_district(df, id))
         print(f"Trying again with {unstick_precinct} as resumption point")
-        #time.sleep(0.1)
         #jumps to that precinct and tries again
         draw_chaos_district(df, target_pop, id, curr_precinct=unstick_precinct)
         #TODO: find some way to reference its "edges" to make this less shitty and bogosortish
@@ -260,8 +246,8 @@ def draw_chaos_state_map(df, num_districts, seed=2023, export=False):
     target_pop = target_dist_pop(df, num_districts)
     for id in range(1, num_districts + 1):
         print(f"Now drawing district {id}...")
-        time.sleep(0.2)
         draw_chaos_district(df, target_pop, id)
+        time.sleep(0.2)
 
     #deal with empty space
     print("Filling holes in map...")
@@ -313,25 +299,6 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
     #-bar chart (put statewide margin on dotted line on x axis, give each district a bar with its %D/%R vertically through it)
     #-bar chart (racial demographics)
 
-def cleanup_map(df):
-    '''
-    Takes the initial output of draw_chaos_state_map and "cleans it up" so that
-    all districts are contiguous, gapless, and of relatively even population
-    size. 
-    This may have to involve a while loop that goes through all unclaimed precincts
-    repeatedly until they're all claimed, which would be slow af, or there may
-    be a way to break it into helper functions that all target specific kinds of
-    subdistricts
-    '''
-    #Ensure that every hole in map is drawn into some district. See documentation
-    fill_district_holes(df)
-
-    #TODO: "population swaps" -- if there is a district whose total population is
-    #too large (wthin something like 1% of even), and it borders a district whose
-    #total population is too small, reassign neighboring precincts of the more populous
-    #district to the less populous one until it is close to the target population
-    pass
-
 def get_all_holes(df):
     '''
     Get a dataframe of all precincts that have not yet been drawn into a district.
@@ -355,14 +322,13 @@ def fill_district_holes(df, map_each_step=False):
     '''
     holes = df.loc[df['dist_id'].isnull()]
     go_rounds = 0
-    while len(holes) > 0: #May have to have some leeway here to avoid infinite looping 
+    while len(holes) > 0: 
         go_rounds += 1
         print(f"Starting cleanup go-round number {go_rounds}.")
         holes = df.loc[df['dist_id'].isnull()]
         print(holes.shape)
         for index, hole in holes.iterrows():
-            districts_around_hole = find_neighboring_districts(df, hole['neighbors'])
-            real_dists_ard_hole = {dist for dist in districts_around_hole if dist is not None}
+            real_dists_ard_hole = find_neighboring_districts(df, hole['neighbors'], include_None=False)
             if len(real_dists_ard_hole) == 0: #i.e. if every neighbor of this hole is also a hole:
                 pass #and handle in successive calls to this function
             elif len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
@@ -380,7 +346,7 @@ def fill_district_holes(df, map_each_step=False):
                 #print(f"drawing into district {neighbor_dist_id} tho")
                 draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
         if map_each_step:
-            print(f"Exporting map for go-round nummber {go_rounds}...")
+            print(f"Exporting map for go-round number {go_rounds}...")
             plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
 
 
@@ -446,22 +412,27 @@ def mapwide_pop_swap(df):
                 #reassign this precinct's dist_id to that of its least populated neighbor
     #print(interior_count, border_count)
 
-def find_neighboring_districts(df, lst):
+def find_neighboring_districts(df, lst, include_None=True):
     '''
     Helperizing this function. Takes in a list of precinct names, and 
     outputs a set of all districts those precincts have been drawn into.
     Inputs:
         -df: geopandas GeoDataFrame
         -lst (NumPy array): list of neighbors as found by df['neighbors']
+        -include_None (boolean): Determines whether the returned set includes
+        None if some neighbors aren't drawn into districts.
     Returns (set): set of dist_ids
     '''
-    set_of_dists_theyre_in = set()
+    dists_theyre_in = set()
     for precinct_name in lst:
         #extract the number of the district of each neighbor.
-        the_dist_its_in = df.loc[df['loc_prec'] == precinct_name, 'dist_id'].iloc[0]
-        #again, i JUST want the SINGLE INTEGER. JFC.
-        set_of_dists_theyre_in.add(the_dist_its_in)
-    return set_of_dists_theyre_in
+        dist_its_in = df.loc[df['loc_prec'] == precinct_name, 'dist_id'].iloc[0]
+        dists_theyre_in.add(dist_its_in)
+    
+    if include_None:
+        return dists_theyre_in
+    else:
+        return {i for i in dists_theyre_in if i is not None}
     #consider changing this to not include None
 
 
