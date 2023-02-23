@@ -141,15 +141,20 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         #TODO: Need to make sure it's outside districts that have been drawn
         curr_index = random.randint(0, len(df)-1)
         curr_precinct = df.loc[curr_index, 'loc_prec']
-        # #https://datatofish.com/random-rows-pandas-dataframe/
-        # curr_precinct = df.sample()['loc_prec'] 
-        # #i JUST want a string here, not df nonsense
-        # #it's not letting me just take out the string value of loc_prec
-        # #because it requires the row index to use .loc, and that's whatever random number instead of 0
-        # print(str(curr_precinct))
         print(f"We're gonna start at: {curr_precinct}")
-        #print(type(curr_precinct))
         #i think i have to do a neighbors check here or else start over
+
+        #try to make starting precinct less crappy
+        neighboring_dists = find_neighboring_districts(df, df.loc[curr_index, 'neighbors'],
+                                                       include_None=False)
+        while len(neighboring_dists) != 0:
+            print("Actually, let's find a less crowded starting point")
+            curr_index = random.randint(0, len(df)-1)
+            curr_precinct = df.loc[curr_index, 'loc_prec']
+            print(f"We're gonna start at: {curr_precinct}")
+            neighboring_dists = find_neighboring_districts(df, df.loc[curr_index, 'neighbors'],
+                                                           include_None=False)
+
     else: 
         curr_index = df.index[df['loc_prec'] == curr_precinct].tolist()[0]
         print(f"We continue with: {curr_precinct}")
@@ -178,12 +183,10 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         print("No valid neighbors to draw into! Handling error case...")
  
         dist_so_far = [] + list(df[df.dist_id == id]['loc_prec'])
-        #debug attempt: adding empty list so it's always a list
 
-        #handle the error if there are no valid neighbors and it's the first precinct for a new district
+        #handle if there are no valid neighbors and it's the first precinct for a new district
         if dist_so_far is None or len(dist_so_far) == 0:
             print("It looks like you can't start drawing here. Restarting somewhere else...")
-            #time.sleep(0.5)
             draw_into_district(df, curr_precinct, None) #undo initial draw
             draw_chaos_district(df, target_pop, id)
 
