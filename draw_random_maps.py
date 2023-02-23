@@ -97,7 +97,7 @@ def draw_into_district(df, precinct, id):
 
 #can you set a keyword argument to output of another function?
 #i.e. target_pop = target_dist_pop(df, 14)?
-def draw_random_district(df, target_pop, id, curr_precinct=None):
+def draw_chaos_district(df, target_pop, id, curr_precinct=None):
     '''
     Draw a random district. Select a random starting precinct, use draw_into_district
     to give it a dist_id, then repeatedly call draw_into_district on random
@@ -122,7 +122,6 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         print("Target population met or exceeded. Ending district draw")
         #time.sleep(0.5)
         return None #"break"
-        #TODO: code in some level of allowable deviation
 
     if curr_precinct is None:
         #select a random precinct to start at
@@ -175,7 +174,7 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
             print("It looks like you can't start drawing here. Restarting somewhere else...")
             #time.sleep(0.5)
             draw_into_district(df, curr_precinct, None) #undo initial draw
-            draw_random_district(df, target_pop, id)
+            draw_chaos_district(df, target_pop, id)
 
         #handle the error where there are no neighbors of *any* point in district
         #This shouldn't print multiple times for one district, and yet it sometimes prints
@@ -190,13 +189,13 @@ def draw_random_district(df, target_pop, id, curr_precinct=None):
         print(f"Trying again with {unstick_precinct} as resumption point")
         #time.sleep(0.1)
         #jumps to that precinct and tries again
-        draw_random_district(df, target_pop, id, curr_precinct=unstick_precinct)
+        draw_chaos_district(df, target_pop, id, curr_precinct=unstick_precinct)
         #TODO: find some way to reference its "edges" to make this less shitty and bogosortish
     else:
     #select a neighbor at random and call this function again 
     #https://stackoverflow.com/questions/306400/how-can-i-randomly-select-an-item-from-a-list
         next_precinct = random.choice(allowed_neighbors)
-        draw_random_district(df, target_pop, id, curr_precinct=next_precinct)
+        draw_chaos_district(df, target_pop, id, curr_precinct=next_precinct)
 
 
 def all_allowed_neighbors_of_district(df, id):
@@ -222,9 +221,9 @@ def all_allowed_neighbors_of_district(df, id):
 
     return allowed_neighbors
 
-def draw_random_state_map(df, num_districts, seed=2023, export=False):
+def draw_chaos_state_map(df, num_districts, seed=2023, export=False):
     '''
-    Uses draw_random_district() to draw a map of random districts of equal
+    Uses draw_chaos_district() to draw a map of random districts of equal
     population for the whole state.
     FINISH DOCSTRING
 
@@ -238,15 +237,15 @@ def draw_random_state_map(df, num_districts, seed=2023, export=False):
     for id in range(1, num_districts + 1):
         print(f"Now drawing district {id}...")
         time.sleep(0.2)
-        draw_random_district(df, target_pop, id)
-        #print(f"Filling holes in district {id}...")
-        #fill_district_holes(df, id)
+        draw_chaos_district(df, target_pop, id)
 
-    #TODO: Add map cleanup here
+    #deal with empty space
+    print("Filling holes in map...")
+    fill_district_holes(df)
 
-    #EXPORT SOMETHING SOMEWHERE SO MAP IS REPRODUCIBLE
-    #maybe do something to add "orphan" precincts to the least populous nearby
-    #district all at once at the end should be faster?
+    print(district_pops(df, max(df['dist_id'])))
+
+    #allow for export so df is reproducible
     if export:
         export_df_to_file(df)
 
@@ -292,7 +291,7 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
 
 def cleanup_map(df):
     '''
-    Takes the initial output of draw_random_state_map and "cleans it up" so that
+    Takes the initial output of draw_chaos_state_map and "cleans it up" so that
     all districts are contiguous, gapless, and of relatively even population
     size. 
     This may have to involve a while loop that goes through all unclaimed precincts
@@ -369,6 +368,7 @@ def mapwide_pop_swap(df):
     Inputs:
         -df (geopandas GeoDataFrame): every precinct should have a dist_id
     '''
+    #TODO: Figure out how to deal with contiguity issues
     #assert (the dist_id column has no Nones in it)
     target_pop = target_dist_pop(df, n=max(df['dist_id']))
 
@@ -415,7 +415,7 @@ def mapwide_pop_swap(df):
 
             #print(f"district id is: {precinct['dist_id']}")
 
-    print(print_district_pops(df, max(df['dist_id'])))
+    print(district_pops(df, max(df['dist_id'])))
 
             #check current population of each neighboring district
             #if the district this precinct is in is overpopulated AND at least one neighbor is underpopulated:
@@ -483,7 +483,7 @@ def draw_recursive_map(df, target_pop, highest=14, drawzone=None):
             -calculate the median, rounded up, between 1 and the total number of
             districts to draw. (For Georgia, n = 14, so (n // 2) + 1 = 8.) 
             -Tracking against total population, fill as close to *exactly half* of
-            the map as possible with the median value, using draw_random_district
+            the map as possible with the median value, using draw_chaos_district
             to select that half randomly from a random starting point. 
             (At first pass, this should result in a GA map where half the population
             lives in 'dist_id' 1 and half lives in 'dist_id' 8.)
@@ -500,7 +500,7 @@ def draw_recursive_map(df, target_pop, highest=14, drawzone=None):
                     median/tot_pop). So with n = 7 districts to draw, the first call
                     draws 4 and the second call draws 3.
         
-        The main advantage of this is that, as each draw_random_district call walks around,
+        The main advantage of this is that, as each draw_chaos_district call walks around,
         it is bounded by the backdrop dist_id -- if you're drawing district 5 at the second
         generation of the call tree, you can't cross over into or overwrite district 8.
         I can code in a hard barrier where it either tells you "You can't go that way" when
@@ -645,7 +645,7 @@ def draw_recursive_region(df, target_pop, id, drawzone, debug_mode=False):
     
 ###END RECURSIVE STUFF###
 
-def print_district_pops(df, n):
+def district_pops(df, n):
     '''Prints the population of the districts from 1 to n'''
     pops_lst = []
     for i in range(1, n+1):
@@ -672,11 +672,11 @@ def export_df_to_file(df):
 if __name__ == '__main__':
     ga_data = startup()
     print("Drawing random map:")
-    draw_random_state_map(ga_data, 14)
+    draw_chaos_state_map(ga_data, 14)
     print("Plotting non-cleaned districts on state map:")
     plot_redblue_by_district(ga_data, "G18DGOV", "G18RGOV")
     print("Cleaning up districts one iteration...")
-    fill_district_holes2(ga_data)
+    fill_district_holes(ga_data)
     print("Plotting cleaned districts on state map for contrast:")
     plot_redblue_by_district(ga_data, "G18DGOV", "G18RGOV")
     print("Clearing districts...")
