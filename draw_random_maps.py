@@ -646,6 +646,8 @@ def draw_recursive_region(df, target_pop, id, drawzone, debug_mode=False):
             print("This precinct has no neighbors it can draw into. Jump elsewhere")
             #look at allowable neighbors of ENTIRE DISTRICT, reduced to unique values
             #This makes the program hang for a bit
+            for neighbor in neighbors_so_far:
+                print(df.loc[df.loc_prec == neighbor]['dist_id'].item())
             neighbors_so_far = {neighbor for neighbor in neighbors_so_far
                                 if int(df.loc[df.loc_prec == neighbor]['dist_id'].item()) == drawzone} #this can sometimes reduce neighbors_so_far to 0 which shouldn't be possible
             #some Columbia County precincts break this, raising ValueErorr("can only convert an array of size 1 to a Python scalar")
