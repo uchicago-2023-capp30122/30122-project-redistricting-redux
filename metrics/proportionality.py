@@ -1,28 +1,39 @@
+# Title: Simulating Partisan Proportionality of Districts
+# Author: Sarik Goyal
+# Last Updated: 2/22/23
+
 import random
 import numpy as np
 import matplotlib.pyplot as plt
 
-def generate_grid(mean_voteshare):
+def generate_grid(mean_voteshare, grid_size):
     '''
-    Generate an 8x8 grid of voteshares, which represents a state. 
+    Generate a square grid of voteshares, which represents a state. 
     The voteshares of the grid are generated using the triangular distribution.
     Inputs:
-        mean_voteshare (float): the mean voteshare of the party
+        mean_voteshare (float): the mean voteshare of the party (must be
+            between 0 and 1)
+        grid_size (int): the side length of the grid (must be an even number)
     Returns:
-        grid (NumPy array of floats): an 8x8 grid of voteshares
+        grid (NumPy array of floats): a grid of voteshares
     '''
+    assert 0 <= mean_voteshare <= 1, f"mean_voteshare must be between 0 and 1"
+    assert grid_size > 0 and grid_size % 2 == 0, f"grid_size must be an even \
+        number greater than 0"
+
     #Our goal is for the grid to have a mean voteshare of exactly the
     #value specified in order to make comparisons and analysis meaningful.
     #As a result, we must keep track of how much voteshare we've
     #used and adjust the mean of our distribution accordingly.
-    
-    remaining_voteshare = 64 * mean_voteshare
+
+    num_squares = grid_size ** 2
+    remaining_voteshare = num_squares * mean_voteshare
     voteshare_list = []
 
-    #We only generate 62 voteshares to start since the 63rd and 64th values 
-    #will have special conditions in order to keep the sampling accurate.
-    for i in range(62):
-        mean_remaining_voteshare = remaining_voteshare / (64 - i)
+    #We only generate (num_squares - 2 voteshares) to start since the 63rd and 
+    #64th values will have special conditions to keep the sampling accurate.
+    for i in range(num_squares - 2):
+        mean_remaining_voteshare = remaining_voteshare / (num_squares - 2 - i)
 
         #We use the properties of the triangular distribution to compute
         #the peak and bounds of the distribution.
@@ -36,38 +47,44 @@ def generate_grid(mean_voteshare):
         voteshare_list.append(voteshare)
         remaining_voteshare -= voteshare
 
-    #Now we can handle the 63rd and 64th values separately.
+    #Now we can handle the last two values separately.
     if remaining_voteshare < 1:
-        voteshare_63 = random.triangular(0, remaining_voteshare, \
+        voteshare_penult = random.triangular(0, remaining_voteshare, \
             remaining_voteshare / 2)
     else:
-        voteshare_63 = random.triangular(remaining_voteshare - 1, 1, \
+        voteshare_penult = random.triangular(remaining_voteshare - 1, 1, \
             remaining_voteshare / 2)
-    voteshare_list.append(voteshare_63)
+    voteshare_list.append(voteshare_penult)
     
-    voteshare_64 = remaining_voteshare - voteshare_63
-    voteshare_list.append(voteshare_64)
+    voteshare_ult = remaining_voteshare - voteshare_penult
+    voteshare_list.append(voteshare_ult)
 
     #We shuffle the list before converting to a NumPy array, as each value is
     #technically generated from a unique distribution.
     random.shuffle(voteshare_list)
-    grid = np.reshape(voteshare_list, (8, 8))
+    grid = np.reshape(voteshare_list, (grid_size, grid_size))
     return grid
 
 def calculate_district_voteshares(grid):
     '''
-    Given an 8x8 grid of voteshares, partitions the grid into 16 2x2 districts.
+    Given a square grid of voteshares, partitions the grid into 2x2 districts.
     Then, calculates the total voteshare of each district.
     Inputs:
-        grid (NumPy array of floats): an 8x8 grid of voteshares
+        grid (NumPy array of floats): a square grid of voteshares
     Returns (tuple):
         district_voteshares (list of floats): the voteshares of each district
         num_districts_won (int): the number of districts above 50% voteshare
     '''
-    long_districts = np.split(grid, 4)
+    grid_shape = np.shape(grid)
+    grid_size = grid_shape[0]
+    assert grid_shape[0] == grid_shape [1], f"grid must be square"
+    assert grid_size > 0 and grid_size % 2 == 0, f"grid_size must be an even \
+        number greater than 0"
+
+    long_districts = np.split(grid, (grid_size / 2))
     all_districts = []
     for long_district in long_districts:
-        districts = np.split(long_district, 4, axis = 1)
+        districts = np.split(long_district, (grid_size / 2), axis = 1)
         all_districts.extend(districts)
 
     district_voteshares = []
@@ -80,12 +97,13 @@ def calculate_district_voteshares(grid):
 
     return (district_voteshares, num_districts_won)
 
-def simulate_data(ntrials, lb, ub, name):
+def simulate_data(grid_size, ntrials, lb, ub, name):
     '''
     Generates many grids and count the number of districts won for each grid.
     Plots the relationship between the average statewide voteshare and the
     percentage of districts won.
     Inputs:
+        grid_size (int): the side length of the grid (must be an even number)
         ntrials (int): The number of grids to generate
         lb (float): The lower bound of generated voteshares
         ub (float): the upper bound of generated voteshares
@@ -97,6 +115,7 @@ def simulate_data(ntrials, lb, ub, name):
     mean_voteshares = []
     per_districts_won = []
     datapoints = []
+    num_districts = grid_size ** 2 / 4
     for i in range(ntrials):
         #We generate the mean_voteshare of each trial randomly by using the
         #triangular distribution once again. This will help us explore the full
@@ -107,8 +126,9 @@ def simulate_data(ntrials, lb, ub, name):
         mean_voteshares.append(mean_voteshare)
 
         num_districts_won = \
-            calculate_district_voteshares(generate_grid(mean_voteshare))[1]
-        per_won = num_districts_won / 16
+            calculate_district_voteshares(generate_grid(mean_voteshare, \
+                grid_size))[1]
+        per_won = num_districts_won / num_districts
         per_districts_won.append(per_won)
 
         datapoints.append((mean_voteshare, per_won))
@@ -118,19 +138,3 @@ def simulate_data(ntrials, lb, ub, name):
     plt.savefig(filepath)
 
     return datapoints
-
-simulate_data(1000, 0.3, 0.7, "basic")
-
-def add_city(grid):
-    '''
-    Rearranges the grid to form a city, or a 3x3 cluster within the grid where 
-    the voteshares are the highest.
-    Inputs:
-        grid (NumPy array): an 8x8 grid of voteshares
-    Returns:
-        city_grid (NumPy array): an 8x8 grid of voteshares with the 9 highest
-            voteshares clustered in a 3x3 region
-    '''
-    #We first randomly locate the center of our city. Since our city will
-    #always be 3x3, the city must not be at the border of the grid.
-    city = np.array([random.randint(1, 6), random.randint(1, 6)])
