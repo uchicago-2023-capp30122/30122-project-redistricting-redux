@@ -91,8 +91,6 @@ def set_precinct_neighbors(df):
         if index % 100 == 0:
             print(f"Neighbors for precinct {index} calculated")
 
-
-
 def draw_into_district(df, precinct, id):
     '''
     Assigns a subunit of the state (currently, voting precinct; ideally, census
@@ -137,23 +135,18 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         return None #"break"
 
     if curr_precinct is None:
+        neighboring_dists = {None}
         #select a random precinct to start at
-        #TODO: Need to make sure it's outside districts that have been drawn
-        curr_index = random.randint(0, len(df)-1)
-        curr_precinct = df.loc[curr_index, 'loc_prec']
-        print(f"We're gonna start at: {curr_precinct}")
-        #i think i have to do a neighbors check here or else start over
-
-        #try to make starting precinct less crappy
-        neighboring_dists = find_neighboring_districts(df, df.loc[curr_index, 'neighbors'],
-                                                       include_None=False)
         while len(neighboring_dists) != 0:
-            print("Actually, let's find a less crowded starting point")
+            print("Let's try to find a non-crowded starting point")
             curr_index = random.randint(0, len(df)-1)
             curr_precinct = df.loc[curr_index, 'loc_prec']
-            print(f"We're gonna start at: {curr_precinct}")
+            print(f"How about: {curr_precinct}")
             neighboring_dists = find_neighboring_districts(df, df.loc[curr_index, 'neighbors'],
-                                                           include_None=False)
+                                                       include_None=False)
+            #time.sleep(0.5)
+        print("cool, that works")
+        #time.sleep(1)
 
     else: 
         curr_index = df.index[df['loc_prec'] == curr_precinct].tolist()[0]
@@ -264,6 +257,40 @@ def draw_chaos_state_map(df, num_districts, seed=2023, export=False):
 
 ### PLOTTING FUNCTIONS ###
 
+def plot_dissolved_map(df, dcol, rcol):
+    '''
+    Plot a map without pesky precinct lines in it. FINISH DOCSTRING
+    '''
+    #df = df[['loc_prec', 'G18DGOV', 'G18RGOV', 'tot', 'geometry', 'dist_id', 'raw_margin']]
+    #print(df)
+    print("Dissolving precincts to full districts...")
+    df_dists = df.dissolve(by='dist_id')
+    df_dists.reset_index(drop=True)
+
+    df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
+    df_dists['point_swing'] = df_dists['raw_margin'].round(3)*100
+
+    df_dists.plot(column='raw_margin', cmap='seismic_r')
+    
+    #Annotating
+    #https://stackoverflow.com/questions/38899190/geopandas-label-polygons
+    for idx, row in df_dists.iterrows():
+        #TODO: Make font size reasonable, plot truncated floats, perhaps in white
+        plt.pyplot.annotate(text=row['point_swing'], 
+                            xy=(row['center'].x, row['center'].y), 
+                            horizontalalignment='center')
+    #for future reference: districts.loc[1]['center'].x, districts.loc[1]['center'].y, districts.loc[1]['raw_margin'].round(2)
+    #Why is this map so much redder than the by-precinct one?
+    #you want to set vmax to abs(max(df_dists['raw_margin'])), and vmin to negative that, i think
+    #so that dead even is always in the middle
+
+    #TODO: Add a legend of dist_ids that doesn't overlap with map
+
+    timestamp = datetime.now().strftime("%m%d-%H%M%S")
+    filepath = 'maps/ga_testmap_' + timestamp
+    plt.pyplot.savefig(filepath, dpi=300) 
+    print(f"District map saved to {filepath}")
+
 def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
     '''
     Outputs a map of the state that color-codes each district by the partisan
@@ -370,6 +397,9 @@ def mapwide_pop_swap(df):
 
     #interior_count = 0
     #border_count = 0
+
+    draws_to_do = []
+
     for _, precinct in df.iterrows():
         #generate list of precinct neighbors, and list of districts those neighbors are in
         neighboring_dists = find_neighboring_districts(df, precinct['neighbors'])
@@ -402,11 +432,15 @@ def mapwide_pop_swap(df):
                     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
                     smallest_neighbor = [k for k,v in proper_neighbors.items() if v == min(proper_neighbors.values())][0] #JANK
                     print(smallest_neighbor)
-                    print(f"Moving {precinct['loc_prec']} and its {precinct['tot']} people from {precinct['dist_id']} to {smallest_neighbor}...")
+                    print(f"Gonna move {precinct['loc_prec']} and its {precinct['tot']} people from {precinct['dist_id']} to {smallest_neighbor}...")
                     #reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
-                    draw_into_district(df, precinct['loc_prec'], smallest_neighbor)
+                    draw_to_do = (precinct['loc_prec'], smallest_neighbor)
+                    draws_to_do.append(draw_to_do)
 
             #print(f"district id is: {precinct['dist_id']}")
+    print("Doing all drawings at once")
+    for draw in draws_to_do:
+        draw_into_district(df, draw[0], draw[1])
 
     print(district_pops(df, max(df['dist_id'])))
 
@@ -414,6 +448,25 @@ def mapwide_pop_swap(df):
             #if the district this precinct is in is overpopulated AND at least one neighbor is underpopulated:
                 #reassign this precinct's dist_id to that of its least populated neighbor
     #print(interior_count, border_count)
+
+def repeated_pop_swap(df):
+    '''Do repeated pop swaps until populations are balanced. Check for fragmentation visually as you go."
+    Hardcoded to 14 for now
+    '''
+    print("evaluating...")
+    count = 1
+    dist_pops = district_pops(df, 14)
+    #print(max(dist_pops.values()))
+    #print(min(dist_pops.values()))
+    print("The most and least populous district differ by:")
+    print(max(dist_pops.values()) - min(dist_pops.values()))
+    while max(dist_pops.values()) - min(dist_pops.values()) >= 100000:
+        print(f"Now doing swap {count}...")
+        mapwide_pop_swap(df)
+        plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
+        count += 1
+        dist_pops = district_pops(df, 14)
+
 
 def find_neighboring_districts(df, lst, include_None=True):
     '''
@@ -647,12 +700,10 @@ def draw_recursive_region(df, target_pop, id, drawzone, debug_mode=False):
 
 def district_pops(df, n):
     '''Prints the population of the districts from 1 to n'''
-    pops_lst = []
+    pops_dict = {}
     for i in range(1, n+1):
-        this_pop = [i, population_sum(df, 'tot', district=i)]
-        pops_lst.append(this_pop)
-        #print(f"{i}: {population_sum(df, 'tot', district=i)}")
-    return pops_lst
+        pops_dict[i] = population_sum(df, 'tot', district=i)
+    return pops_dict
 
 def export_df_to_file(df):
     '''
