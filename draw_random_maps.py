@@ -6,6 +6,7 @@ import re
 import time
 from datetime import datetime
 import matplotlib as plt
+from ast import literal_eval
 from stats import population_sum, blue_red_margin, target_dist_pop #not sure i did this relative directory right
 
 def startup():
@@ -30,6 +31,28 @@ def startup():
 
     return ga_data
 
+def easy_import():
+    '''
+    Get already initialized GA 2018 data without redoing neighbor setup
+    THIS FUNCTION IS BROKEN DO NOT USE
+    '''
+    TEST_DF = "test_dfs/ga_testdf_0222-201206.shp"
+    #TODO: turn neighbors strings back into np arrays so everything doesn't break
+    #https://stackoverflow.com/questions/70943128/can-i-save-a-geodataframe-that-contains-an-array-to-a-geopackage-file
+    df = gpd.read_file(TEST_DF)
+    if 'neighbors' in df.columns:
+        df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x.replace("^", "'"))))
+
+    #Trying to turn strings back into numpy arrays, and I get something like:
+
+    #File <unknown>:4
+    #'Fulton,Fa01A' 'Fulton,Uc01A' 'Fulton,Sc07A' 'Fulton,Uc03
+    #SyntaxError: EOL while scanning string literal
+
+    #because some of them have single quotation marks inside district names which breaks it
+    #replacing single quotes with some other character and adding them back doesn't seem to help
+
+    return df
 
 def clear_district_drawings(df):
     '''
@@ -65,8 +88,9 @@ def set_precinct_neighbors(df):
         #print(len(neighbors))
         overlap = np.array(df[df.geometry.overlaps(row['geometry'])].loc_prec)
         if len(overlap) > 0:
-            #print(f"FOUND {len(overlap)} OVERLAPS!!!!")
             neighbors = np.union1d(neighbors, overlap)
+            #neighbors = neighbors.tolist() #may help with import/export (update: it doesn't; 
+            #pandas casts list to nparray to store it in df. darn
 
         #print(neighbors)
         df.at[index, 'neighbors'] = neighbors
@@ -531,8 +555,8 @@ def draw_recursive_map(df, target_pop, highest=14, drawzone=None):
         return None #end evaluation
 
     n_dists = highest - drawzone + 1 #for GA to start, this is 14
-    upper_median = n_dists // 2 + 1 #for GA to start, this is 8
-    lower_median = n_dists // 2 #for GA to start, this is 7
+    upper_median = (drawzone + n_dists) // 2 + 1 #for GA to start, this is 8
+    lower_median = (drawzone + n_dists) // 2 #for GA to start, this is 7
 
     #cover half the bounding area with new district number
     #you may have to modify the base function so it doesn't go out of bounds
@@ -663,11 +687,15 @@ def export_df_to_file(df):
     Returns: None
     '''
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = 'test_dfs/ga_testdf_' + timestamp + ".geojson"
+    filepath = 'test_dfs/ga_testdf_' + timestamp + ".shp"
+    if 'neighbors' in df.columns:
+        df['neighbors'] = df['neighbors'].apply(lambda x: str(x).replace("'", '^').replace('\n', ''))
     df.to_file(filepath) #can make this GeoJSON instead if we want the convenience of one file
     print(f"{df} exported to {filepath}")
-    #"ValueError: Invalid field type <class 'numpy.ndarray'>"
-
+    #.apply syntax to turn arrays to strings idea from "Matthew Borish" at:
+    #https://stackoverflow.com/questions/70943128/can-i-save-a-geodataframe-that-contains-an-array-to-a-geopackage-file
+    #Without doing so, you get "ValueError: Invalid field type <class 'numpy.ndarray'>"
+    #ughhhhh
 
 if __name__ == '__main__':
     ga_data = startup()
