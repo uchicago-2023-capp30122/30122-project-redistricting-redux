@@ -268,7 +268,7 @@ def draw_chaos_state_map(df, num_districts, seed=2023, clear_first=True, export=
     print("Filling holes in map...")
     fill_district_holes(df)
 
-    print(district_pops(df, max(df['dist_id'])))
+    print(district_pops(df))
 
     #allow for export so df is reproducible
     if export:
@@ -373,9 +373,7 @@ def fill_district_holes(df, map_each_step=False):
         print(holes.shape)
         for index, hole in holes.iterrows():
             real_dists_ard_hole = find_neighboring_districts(df, hole['neighbors'], include_None=False)
-            if len(real_dists_ard_hole) == 0: #i.e. if every neighbor of this hole is also a hole:
-                pass #and handle in successive calls to this function
-            elif len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
+            if len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
                 neighbor_dist_id = int(list(real_dists_ard_hole)[0]) #extract that district id
                 #THIS WILL BREAK IF YOU GIVE YOUR DISTRICTS ANY ID OTHER THAN INTEGERS
                 #print(f"Now drawing {hole['loc_prec']} into district {neighbor_dist_id}...")
@@ -434,9 +432,7 @@ def mapwide_pop_swap(df):
                                 for dist in neighboring_dists 
                                 if dist != precinct['dist_id']
                                 and population_sum(df, 'tot', dist) < target_pop}
-            if len(proper_neighbors) == 0: #all neighbors are of higher population
-                continue
-            else:
+            if len(proper_neighbors) > 0: #all neighbors are of higher population
                 #print(this_prec_dist_pop)
                 #print(proper_neighbors)
                 if this_prec_dist_pop > target_pop:
@@ -457,7 +453,10 @@ def mapwide_pop_swap(df):
             population_sum(df, 'tot', acceptor_district) <= target_pop):
             draw_into_district(df, precinct, acceptor_district)
 
-    print(district_pops(df, max(df['dist_id'])))
+    #At THIS point, it should be possible to fix any district that is fully surrounded
+    #by dist_ids other than its own. (Redraw it to match majority dist_id surrounding it)
+
+    print(district_pops(df))
     print(f"Interior districts: {interior_count}, border districts: {border_count}")
 
 def repeated_pop_swap(df, plot_each_step=True, stop_after=99):
@@ -465,8 +464,10 @@ def repeated_pop_swap(df, plot_each_step=True, stop_after=99):
     Hardcoded to 14 for now
     '''
     count = 1
-    dist_pops = district_pops(df, 14)
+    dist_pops = district_pops(df)
     time.sleep(1)
+    #For extra fun, you could keep track of the population deviation at each iteration
+    #and then plot them at the end to see how fast it converges and whether it's lienar, sigmoidal, etc.
     while (max(dist_pops.values()) - min(dist_pops.values()) >= 100000):
         print(f"Now doing swap {count}...")
         print("The most and least populous district differ by:")
@@ -479,7 +480,7 @@ def repeated_pop_swap(df, plot_each_step=True, stop_after=99):
         if count >= stop_after:
             print(f"You've now swapped {count} times. Stopping")
             break
-        dist_pops = district_pops(df, 14)
+        dist_pops = district_pops(df)
     if max(dist_pops.values()) - min(dist_pops.values()) <= 100000:
         print("You've reached your population balance target. Hooray!")
 
@@ -521,10 +522,10 @@ def results_by_district(df):
     return df_dists
 
 
-def district_pops(df, n):
+def district_pops(df):
     '''Outputs the population of the districts from 1 to n'''
     pops_dict = {}
-    for i in range(1, n+1):
+    for i in range(1, max(df.dist_id)+1):
         pops_dict[i] = population_sum(df, 'tot', district=i)
     return pops_dict
 
