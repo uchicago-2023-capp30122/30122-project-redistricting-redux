@@ -1,7 +1,7 @@
 '''
 All functions in this file by: Matt Jackson
 '''
-
+import pandas as pd
 import geopandas as gpd
 import numpy as np
 import random 
@@ -12,7 +12,7 @@ import matplotlib as plt
 from ast import literal_eval
 from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density #not sure i did this relative directory right
 
-def 2018_startup():
+def startup_2018():
     '''
     Get the GA 2018 data ready to do things with.
     Inputs:
@@ -41,30 +41,10 @@ def startup():
     #TODO: implement
     pass
 
-def easy_import():
-    '''
-    Get already initialized GA 2018 data without redoing neighbor setup
-    THIS FUNCTION IS BROKEN DO NOT USE
-    '''
-    TEST_DF = "test_dfs/ga_testdf_0222-201206.shp"
-    #TODO: turn neighbors strings back into np arrays so everything doesn't break
-    #https://stackoverflow.com/questions/70943128/can-i-save-a-geodataframe-that-contains-an-array-to-a-geopackage-file
-    df = gpd.read_file(TEST_DF)
-    if 'neighbors' in df.columns:
-        df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x.replace("^", "'"))))
 
-    #Trying to turn strings back into numpy arrays, and I get something like:
+###DRAWING-RELATED FUNCTIONS###
 
-    #File <unknown>:4
-    #'Fulton,Fa01A' 'Fulton,Uc01A' 'Fulton,Sc07A' 'Fulton,Uc03
-    #SyntaxError: EOL while scanning string literal
-
-    #because some of them have single quotation marks inside district names which breaks it
-    #replacing single quotes with some other character and adding them back doesn't seem to help
-
-    return df
-
-def clear_district_drawings(df):
+def clear_dist_ids(df):
     '''
     Clears off any district IDs that precincts may have been assigned in the
     past. Call this between calls to any map-drawing function.
@@ -75,12 +55,12 @@ def clear_district_drawings(df):
     df['dist_id'] = None
 
 
-###DRAWING-RELATED FUNCTIONS###
-
 def set_precinct_neighbors(df):
     '''
-    Creates a list of neighbors for each precinct whose geometry is in the 
-    GeoDataFrame.
+    Creates a list of neighbors (adjacency list) for each precinct/VTD whose 
+    geometry is in the GeoDataFrame.
+    Takes about 80-90 seconds for the Georgia 2018 precinct map, or about .03
+    seconds per precinct.
 
     Inputs:
         -df (GeoPandas GeoDataFrame)
@@ -91,19 +71,37 @@ def set_precinct_neighbors(df):
     #https://gis.stackexchange.com/questions/281652/finding-all-neighbors-using-geopandas
     df['neighbors'] = None
     
-    #This is real slow, takes maybe 2 minutes for voting precincts
     for index, row in df.iterrows():
         neighbors = np.array(df[df.geometry.touches(row['geometry'])].loc_prec)
         #maybe there's a way to update neighbors for all the neighbors this one finds too? to speed up/reduce redundant calcs?
-        #print(len(neighbors))
         overlap = np.array(df[df.geometry.overlaps(row['geometry'])].loc_prec)
         if len(overlap) > 0:
             neighbors = np.union1d(neighbors, overlap)
-            #neighbors = neighbors.tolist() #may help with import/export (update: it doesn't; 
-            #pandas casts list to nparray to store it in df. darn
+        #If you convert to tuple here, later procedures to find available neighbors can use sets instead of lists
+        #(np.array is an unhashable type)
         df.at[index, 'neighbors'] = neighbors
         if index % 100 == 0:
             print(f"Neighbors for precinct {index} calculated")
+    
+    print("Saving neighbors list to csv so you don't have to do this again...")
+    df['neighbors'].to_csv('test_dfs/ga_2018_neighbors.csv')
+
+
+def affix_neighbors_list(df, neighbor_filename):
+    '''
+    Affix an adjacency list of neighbors to the appropriate csv.
+    Input:
+        -df(geopandas GeoDataFrame): precinct/VTD-level data for a state
+        -neighbor_filename (str): name of file where neighbors list is
+    '''
+    #do some exception/assertion checks: make sure length of neighbor list matches df
+    #also, maybe make sure it's not somehow sorted so as to make the list in the wrong order?
+    neighbor_csv = pd.read_csv(neighbor_filename)
+    neighbor_list = neighbor_csv['neighbors'] #this comes in as a string, has to be list-ified
+    #deserialize, TODO: use re to make this neater
+    df['neighbors'] = neighbor_list
+    df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x.replace("\n", "").replace("' '", "', '")), dtype=object))
+
 
 def draw_into_district(df, precinct, id):
     '''
@@ -166,6 +164,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         curr_index = df.index[df['loc_prec'] == curr_precinct].tolist()[0]
         print(f"We continue with: {curr_precinct}")
 
+    #if df.loc[df.loc_prec==curr_precinct,'dist_id'].item() is None:
     if df.loc[curr_index, 'dist_id'] is None:
         #print(f"Now drawing {curr_precinct} into district")
         draw_into_district(df, curr_precinct, id)
@@ -210,7 +209,6 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         print(f"Trying again with {unstick_precinct} as resumption point")
         #jumps to that precinct and tries again
         draw_chaos_district(df, target_pop, id, curr_precinct=unstick_precinct)
-        #TODO: find some way to reference its "edges" to make this less shitty and bogosortish
     else:
     #select a neighbor at random and call this function again 
     #https://stackoverflow.com/questions/306400/how-can-i-randomly-select-an-item-from-a-list
@@ -508,6 +506,7 @@ def results_by_district(df):
     df_dists.reset_index(drop=True)
     return df_dists
 
+
 def district_pops(df, n):
     '''Outputs the population of the districts from 1 to n'''
     pops_dict = {}
@@ -515,24 +514,6 @@ def district_pops(df, n):
         pops_dict[i] = population_sum(df, 'tot', district=i)
     return pops_dict
 
-def export_df_to_file(df):
-    '''
-    Exports your GeoDataFrame (with labeled districts, if you labeled them) to
-    a file for reupload or statistical calculation.
-    Inputs:
-        -df (geopandas GeoFataFrame)
-    Returns: None
-    '''
-    timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = 'test_dfs/ga_testdf_' + timestamp + ".shp"
-    if 'neighbors' in df.columns:
-        df['neighbors'] = df['neighbors'].apply(lambda x: str(x).replace("'", '^').replace('\n', ''))
-    df.to_file(filepath) #can make this GeoJSON instead if we want the convenience of one file
-    print(f"{df} exported to {filepath}")
-    #.apply syntax to turn arrays to strings idea from "Matthew Borish" at:
-    #https://stackoverflow.com/questions/70943128/can-i-save-a-geodataframe-that-contains-an-array-to-a-geopackage-file
-    #Without doing so, you get "ValueError: Invalid field type <class 'numpy.ndarray'>"
-    #ughhhhh
 
 if __name__ == '__main__':
     ga_data = startup()
@@ -545,4 +526,4 @@ if __name__ == '__main__':
     print("Plotting cleaned districts on state map for contrast:")
     plot_redblue_by_district(ga_data, "G18DGOV", "G18RGOV")
     print("Clearing districts...")
-    clear_district_drawings(ga_data)
+    clear_dist_ids(ga_data)
