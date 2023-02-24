@@ -1,13 +1,12 @@
-#print("Importing geopandas...")
 import geopandas as gpd
 import numpy as np
-import random #SINCE YOU USE RANDOM YOU NEED TO SET A SEED SOMEWHERE FOR REPLICABILITY
+import random 
 import re
 import time
 from datetime import datetime
 import matplotlib as plt
 from ast import literal_eval
-from stats import population_sum, blue_red_margin, target_dist_pop #not sure i did this relative directory right
+from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density #not sure i did this relative directory right
 
 def startup():
     '''
@@ -440,7 +439,9 @@ def mapwide_pop_swap(df):
             #print(f"district id is: {precinct['dist_id']}")
     print("Doing all drawings at once")
     for draw in draws_to_do:
-        draw_into_district(df, draw[0], draw[1])
+        #put in a population check here to make sure donor district isn't now too small to donate
+        #heh that's good terminology, "donor district" / "acceptor district"
+        draw_into_district(df, draw[0], draw[1]) #loc_prec, smallest_neighbor
 
     print(district_pops(df, max(df['dist_id'])))
 
