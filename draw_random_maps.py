@@ -1,3 +1,7 @@
+'''
+All functions in this file by: Matt Jackson
+'''
+
 import geopandas as gpd
 import numpy as np
 import random 
@@ -8,12 +12,12 @@ import matplotlib as plt
 from ast import literal_eval
 from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density #not sure i did this relative directory right
 
-def startup():
+def 2018_startup():
     '''
     Get the GA 2018 data ready to do things with.
     Inputs:
         -none
-    Returns: none, loads ga_data as the df
+    Returns (geopandas GeoDataFrame): df for 2018 Georgia OpenPrecincts
     '''
     print("Importing Georgia 2018 precinct shapefile data...")
     fp = "openprecincts_ga_2018/2018Precincts.shp"
@@ -25,6 +29,17 @@ def startup():
     ga_data['dist_id'] = None #use .isnull() to select all of these
 
     return ga_data
+
+def startup():
+    '''
+    Get the GA 2020 data ready to do things with.
+    Generalize to other states when API call becomes functional.
+    Inputs:
+        -none (for now, give it a state or state postal code abbrev later)
+    Returns (geopandas GeoDataFrame): 
+    '''
+    #TODO: implement
+    pass
 
 def easy_import():
     '''
@@ -52,7 +67,7 @@ def easy_import():
 def clear_district_drawings(df):
     '''
     Clears off any district IDs that precincts may have been assigned in the
-    past. Good idea to call this before calling any map-drawing function.
+    past. Call this between calls to any map-drawing function.
     Inputs:
         df (geopandas GeoDataFrame)
     Returns: None, modifies GeoDataFrame in-place
@@ -321,12 +336,7 @@ def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
     filepath = 'maps/ga_testmap_' + timestamp
     plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
-#Multiple possible kinds of plot:
-    #-state map (choropleth colored by Kemp-Abrams or Biden-Trump margin)
-    #-state map (choropleth colored by racial demographics)
-    #-state map (random colors)
-    #-bar chart (put statewide margin on dotted line on x axis, give each district a bar with its %D/%R vertically through it)
-    #-bar chart (racial demographics)
+
 
 def get_all_holes(df):
     '''
@@ -429,7 +439,7 @@ def mapwide_pop_swap(df):
                     smallest_neighbor = [k for k,v in proper_neighbors.items() if v == min(proper_neighbors.values())][0] #JANK
                     print(smallest_neighbor)
                     print(f"Gonna move {precinct['loc_prec']} and its {precinct['tot']} people from {precinct['dist_id']} to {smallest_neighbor}...")
-                    #reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
+                    #prepare to reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
                     draw_to_do = (precinct['loc_prec'], smallest_neighbor)
                     draws_to_do.append(draw_to_do)
 
@@ -441,10 +451,6 @@ def mapwide_pop_swap(df):
         draw_into_district(df, draw[0], draw[1]) #loc_prec, smallest_neighbor
 
     print(district_pops(df, max(df['dist_id'])))
-
-            #check current population of each neighboring district
-            #if the district this precinct is in is overpopulated AND at least one neighbor is underpopulated:
-                #reassign this precinct's dist_id to that of its least populated neighbor
     #print(interior_count, border_count)
 
 def repeated_pop_swap(df, stop_after=99):
@@ -487,10 +493,9 @@ def find_neighboring_districts(df, lst, include_None=True):
         return dists_theyre_in
     else:
         return {i for i in dists_theyre_in if i is not None}
-    #consider changing this to not include None
 
 
-def map_stats_table(df):
+def results_by_district(df):
     '''
     Compresses the df down to a table of by-district stats, where each row
     represents entire area with one dist_id. e.g. population, racial demographics,
@@ -498,9 +503,10 @@ def map_stats_table(df):
 
     Possibly exports as csv for replicability.
     '''
-    stats_table = df.groupby(['dist_id'])
-    return stats_table
-    #gives me 64 rows instead of 14 for some reason. DEBUG
+    df = df.drop(['neighbors'])
+    df_dists = df.dissolve(by='dist_id', aggfunc=sum)
+    df_dists.reset_index(drop=True)
+    return df_dists
 
 def district_pops(df, n):
     '''Outputs the population of the districts from 1 to n'''

@@ -1,3 +1,9 @@
+'''
+population_sum, blue_red_margin, target_dist_pop, metric_area, population_density
+functions by: Matt Jackson
+
+
+'''
 #Separating basic stats that aren't *inherently* mapping functions into
 #their own file for better code organization
 
