@@ -1,5 +1,7 @@
 '''
 All functions in this file by: Matt Jackson
+
+Special thanks to Ethan Arsht for advice on mapwide_pop_swap
 '''
 import pandas as pd
 import geopandas as gpd
@@ -12,7 +14,7 @@ import matplotlib as plt
 from ast import literal_eval
 from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density #not sure i did this relative directory right
 
-def startup_2018():
+def startup_2018(init_neighbors=False):
     '''
     Get the GA 2018 data ready to do things with.
     Inputs:
@@ -23,9 +25,10 @@ def startup_2018():
     fp = "openprecincts_ga_2018/2018Precincts.shp"
     ga_data = gpd.read_file(fp)
     print("Georgia 2018 shapefile data imported")
-    print("Calculating district neighbors:")
-    set_precinct_neighbors(ga_data)
-    print("District neighbors calculated")
+    if init_neighbors:
+        print("Calculating district neighbors:")
+        set_precinct_neighbors(ga_data)
+        print("District neighbors calculated")
     ga_data['dist_id'] = None #use .isnull() to select all of these
 
     return ga_data
@@ -41,7 +44,6 @@ def startup():
     #TODO: implement
     pass
 
-
 ###DRAWING-RELATED FUNCTIONS###
 
 def clear_dist_ids(df):
@@ -53,7 +55,6 @@ def clear_dist_ids(df):
     Returns: None, modifies GeoDataFrame in-place
     '''
     df['dist_id'] = None
-
 
 def set_precinct_neighbors(df):
     '''
@@ -94,6 +95,8 @@ def affix_neighbors_list(df, neighbor_filename):
         -df(geopandas GeoDataFrame): precinct/VTD-level data for a state
         -neighbor_filename (str): name of file where neighbors list is
     '''
+
+    #2018 Open Precincts neighbors filename: "test_dfs/ga_2018_neighbors.csv"
     #do some exception/assertion checks: make sure length of neighbor list matches df
     #also, maybe make sure it's not somehow sorted so as to make the list in the wrong order?
     neighbor_csv = pd.read_csv(neighbor_filename)
@@ -101,7 +104,8 @@ def affix_neighbors_list(df, neighbor_filename):
     #deserialize, TODO: use re to make this neater
     df['neighbors'] = neighbor_list
     df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x.replace("\n", "").replace("' '", "', '")), dtype=object))
-
+    #this doesn't work exactly right on loc_precs; hopefully GEOID20 is standard enough that it works on it
+    #i think it's because the commas and single quotes mess stuff up
 
 def draw_into_district(df, precinct, id):
     '''
@@ -148,16 +152,15 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
 
     if curr_precinct is None:
         neighboring_dists = {None}
-        #select a random precinct to start at
+        #Select a random precinct to start at. It should be empty and
+        #have neighbors that are all also empty.
         while len(neighboring_dists) != 0:
-            print("Let's try to find a non-crowded starting point")
             curr_index = random.randint(0, len(df)-1)
             curr_precinct = df.loc[curr_index, 'loc_prec']
-            print(f"How about: {curr_precinct}")
             neighboring_dists = find_neighboring_districts(df, df.loc[curr_index, 'neighbors'],
                                                        include_None=False)
             #time.sleep(0.5)
-        print("cool, that works")
+        print(f"Starting at: {curr_precinct}")
         #time.sleep(1)
 
     else: 
@@ -172,15 +175,13 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
 
     all_neighbors = df.loc[curr_index, 'neighbors']
     #print(all_neighbors)
-    #again i JUST want a string. jfc. 
-    #link to index derping stuff i've been drawing on: 
+    #Indexing code inspired by:
     #https://stackoverflow.com/questions/21800169/python-pandas-get-index-of-rows-where-column-matches-certain-value
-    # filter those down to neighbors whose dist_id is still None
-    # consider redoing as an elegant list comprehension
+    #TODO: consider helperizing and/or redoing as an elegant list comprehension
     allowed_neighbors = []
     for nabe in all_neighbors:
         nabe_index = df.index[df['loc_prec'] == nabe].tolist()
-        #print(nabe_index)
+        print(nabe, nabe_index)
         if df.loc[nabe_index[0], 'dist_id'] is None:
             allowed_neighbors.append(nabe)
     #print(allowed_neighbors)
@@ -191,6 +192,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         dist_so_far = [] + list(df[df.dist_id == id]['loc_prec'])
 
         #handle if there are no valid neighbors and it's the first precinct for a new district
+        #This should never trigger now that starting precinct must have empty neighbors.
         if dist_so_far is None or len(dist_so_far) == 0:
             print("It looks like you can't start drawing here. Restarting somewhere else...")
             draw_into_district(df, curr_precinct, None) #undo initial draw
@@ -233,13 +235,13 @@ def all_allowed_neighbors_of_district(df, id):
     allowed_neighbors = []
     for nabe in nabe_set:
         nabe_index = df.index[df['loc_prec'] == nabe].tolist()
-        #print(nabe_index)
+        print(nabe, nabe_index)
         if df.loc[nabe_index[0], 'dist_id'] is None:
             allowed_neighbors.append(nabe)
 
     return allowed_neighbors
 
-def draw_chaos_state_map(df, num_districts, seed=2023, export=False):
+def draw_chaos_state_map(df, num_districts, seed=2023, clear_first=True, export=False):
     '''
     Uses draw_chaos_district() to draw a map of random districts of equal
     population for the whole state.
@@ -250,6 +252,11 @@ def draw_chaos_state_map(df, num_districts, seed=2023, export=False):
         for state
         -num_districts (int): Number of districts to draw (for Georgia, that's 14)
     '''
+    if clear_first:
+        print("Clearing off previous district drawings, if any...")
+        clear_dist_ids(df)
+        time.sleep(1)
+
     random.seed(seed) 
     target_pop = target_dist_pop(df, num_districts)
     for id in range(1, num_districts + 1):
@@ -438,15 +445,18 @@ def mapwide_pop_swap(df):
                     print(smallest_neighbor)
                     print(f"Gonna move {precinct['loc_prec']} and its {precinct['tot']} people from {precinct['dist_id']} to {smallest_neighbor}...")
                     #prepare to reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
-                    draw_to_do = (precinct['loc_prec'], smallest_neighbor)
+                    draw_to_do = (precinct['dist_id'], precinct['loc_prec'], smallest_neighbor)
                     draws_to_do.append(draw_to_do)
 
             #print(f"district id is: {precinct['dist_id']}")
     print("Doing all drawings at once")
     for draw in draws_to_do:
+        donor_district, precinct, acceptor_district = draw
+        if population_sum(df, 'tot', donor_district) >= target_pop:
         #put in a population check here to make sure donor district isn't now too small to donate
         #heh that's good terminology, "donor district" / "acceptor district"
-        draw_into_district(df, draw[0], draw[1]) #loc_prec, smallest_neighbor
+            print("Draw is still valid. Doing it")
+            draw_into_district(df, precinct, acceptor_district) #loc_prec, smallest_neighbor
 
     print(district_pops(df, max(df['dist_id'])))
     #print(interior_count, border_count)
@@ -460,13 +470,14 @@ def repeated_pop_swap(df, stop_after=99):
     dist_pops = district_pops(df, 14)
     print("The most and least populous district differ by:")
     print(max(dist_pops.values()) - min(dist_pops.values()))
-    while (max(dist_pops.values()) - min(dist_pops.values()) >= 100000 or
-           count < stop_after):
+    while (max(dist_pops.values()) - min(dist_pops.values()) >= 100000):
         print(f"Now doing swap {count}...")
         time.sleep(1)
         mapwide_pop_swap(df)
         plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
         count += 1
+        if count >= stop_after:
+            break
         dist_pops = district_pops(df, 14)
 
 
