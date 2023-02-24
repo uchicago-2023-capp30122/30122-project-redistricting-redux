@@ -181,7 +181,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
     allowed_neighbors = []
     for nabe in all_neighbors:
         nabe_index = df.index[df['loc_prec'] == nabe].tolist()
-        print(nabe, nabe_index)
+        #print(nabe, nabe_index)
         if df.loc[nabe_index[0], 'dist_id'] is None:
             allowed_neighbors.append(nabe)
     #print(allowed_neighbors)
@@ -193,10 +193,10 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
 
         #handle if there are no valid neighbors and it's the first precinct for a new district
         #This should never trigger now that starting precinct must have empty neighbors.
-        if dist_so_far is None or len(dist_so_far) == 0:
-            print("It looks like you can't start drawing here. Restarting somewhere else...")
-            draw_into_district(df, curr_precinct, None) #undo initial draw
-            draw_chaos_district(df, target_pop, id)
+        # if dist_so_far is None or len(dist_so_far) == 0:
+        #     print("It looks like you can't start drawing here. Restarting somewhere else...")
+        #     draw_into_district(df, curr_precinct, None) #undo initial draw
+        #     draw_chaos_district(df, target_pop, id)
 
         #handle the error where there are no neighbors of *any* point in district
         #This shouldn't print multiple times for one district, and yet it sometimes prints
@@ -235,7 +235,7 @@ def all_allowed_neighbors_of_district(df, id):
     allowed_neighbors = []
     for nabe in nabe_set:
         nabe_index = df.index[df['loc_prec'] == nabe].tolist()
-        print(nabe, nabe_index)
+        #print(nabe, nabe_index)
         if df.loc[nabe_index[0], 'dist_id'] is None:
             allowed_neighbors.append(nabe)
 
@@ -389,9 +389,11 @@ def fill_district_holes(df, map_each_step=False):
                 neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
                 #print(f"drawing into district {neighbor_dist_id} tho")
                 draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
+        
         if map_each_step:
             print(f"Exporting map for go-round number {go_rounds}...")
             plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
+    print("Cleanup complete. All holes in districts filled. Districts expanded to fill empty space.")
 
 
 def mapwide_pop_swap(df):
@@ -406,8 +408,8 @@ def mapwide_pop_swap(df):
     #assert (the dist_id column has no Nones in it)
     target_pop = target_dist_pop(df, n=max(df['dist_id']))
 
-    #interior_count = 0
-    #border_count = 0
+    interior_count = 0
+    border_count = 0
 
     draws_to_do = []
 
@@ -419,11 +421,9 @@ def mapwide_pop_swap(df):
         if len(neighboring_dists) == 1 and tuple(neighboring_dists)[0] == precinct['dist_id']:
             #this is not on a district border
             pass #is there a way to only iterate through borders upfront? saves a lot of computation time
-            #print("This is not on a district border")
-            #interior_count += 1
+            interior_count += 1
         else: #if this precinct has neighbors in other districts:
-            #print("This IS ON A DISTRICT BORDER")
-            #border_count += 1
+            border_count += 1
 
             #get population of this precinct's district
             this_prec_dist_pop = population_sum(df, 'tot', precinct['dist_id'])
@@ -437,48 +437,51 @@ def mapwide_pop_swap(df):
             if len(proper_neighbors) == 0: #all neighbors are of higher population
                 continue
             else:
-                print(this_prec_dist_pop)
-                print(proper_neighbors)
+                #print(this_prec_dist_pop)
+                #print(proper_neighbors)
                 if this_prec_dist_pop > target_pop:
                     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
                     smallest_neighbor = [k for k,v in proper_neighbors.items() if v == min(proper_neighbors.values())][0] #JANK
-                    print(smallest_neighbor)
+                    #print(smallest_neighbor)
                     print(f"Gonna move {precinct['loc_prec']} and its {precinct['tot']} people from {precinct['dist_id']} to {smallest_neighbor}...")
                     #prepare to reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
                     draw_to_do = (precinct['dist_id'], precinct['loc_prec'], smallest_neighbor)
                     draws_to_do.append(draw_to_do)
 
             #print(f"district id is: {precinct['dist_id']}")
-    print("Doing all drawings at once")
+    print("Doing all valid drawings one at a time...")
     for draw in draws_to_do:
         donor_district, precinct, acceptor_district = draw
-        if population_sum(df, 'tot', donor_district) >= target_pop:
-        #put in a population check here to make sure donor district isn't now too small to donate
-        #heh that's good terminology, "donor district" / "acceptor district"
-            print("Draw is still valid. Doing it")
-            draw_into_district(df, precinct, acceptor_district) #loc_prec, smallest_neighbor
+        #make sure donor district isn't now too small to be giving away precincts
+        if (population_sum(df, 'tot', donor_district) >= target_pop and
+            population_sum(df, 'tot', acceptor_district) <= target_pop):
+            draw_into_district(df, precinct, acceptor_district)
 
     print(district_pops(df, max(df['dist_id'])))
-    #print(interior_count, border_count)
+    print(f"Interior districts: {interior_count}, border districts: {border_count}")
 
-def repeated_pop_swap(df, stop_after=99):
+def repeated_pop_swap(df, plot_each_step=True, stop_after=99):
     '''Do repeated pop swaps until populations are balanced. Check for fragmentation visually as you go."
     Hardcoded to 14 for now
     '''
-    print("evaluating...")
     count = 1
     dist_pops = district_pops(df, 14)
-    print("The most and least populous district differ by:")
-    print(max(dist_pops.values()) - min(dist_pops.values()))
+    time.sleep(1)
     while (max(dist_pops.values()) - min(dist_pops.values()) >= 100000):
         print(f"Now doing swap {count}...")
+        print("The most and least populous district differ by:")
+        print(max(dist_pops.values()) - min(dist_pops.values()))
         time.sleep(1)
         mapwide_pop_swap(df)
-        plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
+        if plot_each_step:
+            plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
         count += 1
         if count >= stop_after:
+            print(f"You've now swapped {count} times. Stopping")
             break
         dist_pops = district_pops(df, 14)
+    if max(dist_pops.values()) - min(dist_pops.values()) <= 100000:
+        print("You've reached your population balance target. Hooray!")
 
 
 def find_neighboring_districts(df, lst, include_None=True):
