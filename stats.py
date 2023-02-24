@@ -85,4 +85,5 @@ def metric_area(df, district=None):
 
 def population_density(df, colname, district=None):
     '''A rough population density statistic to feed into Sarik's metrics'''
+    #Is there any reason to also do this for precincts?
     return population_sum(df, colname, district) / metric_area(df, district)

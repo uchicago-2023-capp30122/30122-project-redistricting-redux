@@ -391,9 +391,6 @@ def mapwide_pop_swap(df):
     #assert (the dist_id column has no Nones in it)
     target_pop = target_dist_pop(df, n=max(df['dist_id']))
 
-    #put this all in a while loop until the actual populations of each district
-    #are within some balanced range
-
     #interior_count = 0
     #border_count = 0
 
@@ -506,7 +503,7 @@ def map_stats_table(df):
     #gives me 64 rows instead of 14 for some reason. DEBUG
 
 def district_pops(df, n):
-    '''Prints the population of the districts from 1 to n'''
+    '''Outputs the population of the districts from 1 to n'''
     pops_dict = {}
     for i in range(1, n+1):
         pops_dict[i] = population_sum(df, 'tot', district=i)
