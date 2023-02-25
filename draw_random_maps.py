@@ -407,27 +407,19 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     #TODO: Figure out how to deal with contiguity issues
     #assert (the dist_id column has no Nones in it)
     target_pop = target_dist_pop(df, n=max(df['dist_id']))
-
-    #interior_count = 0
-    #border_count = 0
-
     draws_to_do = []
 
     for _, precinct in df.iterrows():
         #generate list of precinct neighbors, and list of districts those neighbors are in
         neighboring_dists = find_neighboring_districts(df, precinct['neighbors'])
-        #print(neighboring_dists)
 
         if len(neighboring_dists) == 1 and tuple(neighboring_dists)[0] == precinct['dist_id']:
             #this is not on a district border
             pass #is there a way to only iterate through borders upfront? saves a lot of computation time
-            #interior_count += 1
         else: #if this precinct has neighbors in other districts:
-            #border_count += 1
 
             #get population of this precinct's district
             this_prec_dist_pop = population_sum(df, 'tot', precinct['dist_id'])
-            #print(this_prec_dist_pop)
 
             #get current population of each neighboring district with below-target population
             proper_neighbors = {dist : population_sum(df, 'tot', dist) 
@@ -435,39 +427,25 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
                                 if dist != precinct['dist_id']
                                 and population_sum(df, 'tot', dist) < target_pop}
             if len(proper_neighbors) > 0: #all neighbors are of higher population
-                #print(this_prec_dist_pop)
-                #print(proper_neighbors)
                 if this_prec_dist_pop > target_pop:
                     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
                     smallest_neighbor = [k for k,v in proper_neighbors.items() if v == min(proper_neighbors.values())][0] #JANK
-                    #print(smallest_neighbor)
-                    #print(f"Gonna move {precinct['loc_prec']} and its {precinct['tot']} people from {precinct['dist_id']} to {smallest_neighbor}...")
                     #prepare to reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
                     draw_to_do = (precinct['dist_id'], precinct['loc_prec'], smallest_neighbor)
                     draws_to_do.append(draw_to_do)
 
-            #print(f"district id is: {precinct['dist_id']}")
     print("Doing all valid drawings one at a time...")
     for draw in draws_to_do:
         donor_district, precinct, acceptor_district = draw
-        #make sure donor district isn't now too small to be giving away precincts
+        #make sure acceptor district isn't too large to be accepting precincts
+        #see past commits for more notes re: cyclical behavior
         if population_sum(df, 'tot', acceptor_district) <= target_pop + (allowed_deviation / 2):
-        #if population_sum(df, 'tot', donor_district) >= target_pop - (allowed_deviation / 2): #try with some leeway
-            #and population_sum(df, 'tot', acceptor_district) <= target_pop): #I think this condition slows down convergence significantly
-            #it does, but without it, it looks like you can get stuck in an oscillating pattern where the same districts donate back and forth forever
-            #2/24/2023: with seed 2, the map reached a state after about 15 swaps where it went from a deviation of 175575 to 283549 and back
-            #as district 1 kept swapping the same precincts out and back in
-            #let's see if acceptor-only works
-            #2/24/2023: it doesn't; after about swap 10, it got in a cycle between 294033, 277934, 299705, 281114, 277934, 299705, 277394...
-            #with both conditions, population_deviation is strictly descending; with just one it can get into oscillatory cycles
-            #with neither it seems to be much harder to keep it on a downward trajectory because precincts can just shuffle endlessly
             draw_into_district(df, precinct, acceptor_district)
 
-    #At THIS point, it should be possible to fix any district that is fully surrounded
-    #by dist_ids other than its own. (Redraw it to match majority dist_id surrounding it)
+    #TODO: fix any district that is fully surrounded by dist_ids other than its 
+    #own (redraw it to match majority dist_id surrounding it)
 
     print(district_pops(df))
-    #print(f"Interior districts: {interior_count}, border districts: {border_count}")
 
 def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=True, stop_after=99):
     '''Do repeated pop swaps until populations are balanced. Check for fragmentation visually as you go."
