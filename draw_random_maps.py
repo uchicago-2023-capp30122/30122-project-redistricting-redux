@@ -394,20 +394,22 @@ def fill_district_holes(df, map_each_step=False):
     print("Cleanup complete. All holes in districts filled. Districts expanded to fill empty space.")
 
 
-def mapwide_pop_swap(df):
+def mapwide_pop_swap(df, allowed_deviation=70000):
     '''
     If we're going to get to close-to-even populations, this is the approach
     I think I can do with my current skills.
 
     Inputs:
         -df (geopandas GeoDataFrame): every precinct should have a dist_id
+        -allowed_deviation (int)
     '''
+    #QUESTION: Can you iterate geographically rather than by df index?
     #TODO: Figure out how to deal with contiguity issues
     #assert (the dist_id column has no Nones in it)
     target_pop = target_dist_pop(df, n=max(df['dist_id']))
 
-    interior_count = 0
-    border_count = 0
+    #interior_count = 0
+    #border_count = 0
 
     draws_to_do = []
 
@@ -419,9 +421,9 @@ def mapwide_pop_swap(df):
         if len(neighboring_dists) == 1 and tuple(neighboring_dists)[0] == precinct['dist_id']:
             #this is not on a district border
             pass #is there a way to only iterate through borders upfront? saves a lot of computation time
-            interior_count += 1
+            #interior_count += 1
         else: #if this precinct has neighbors in other districts:
-            border_count += 1
+            #border_count += 1
 
             #get population of this precinct's district
             this_prec_dist_pop = population_sum(df, 'tot', precinct['dist_id'])
@@ -439,7 +441,7 @@ def mapwide_pop_swap(df):
                     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
                     smallest_neighbor = [k for k,v in proper_neighbors.items() if v == min(proper_neighbors.values())][0] #JANK
                     #print(smallest_neighbor)
-                    print(f"Gonna move {precinct['loc_prec']} and its {precinct['tot']} people from {precinct['dist_id']} to {smallest_neighbor}...")
+                    #print(f"Gonna move {precinct['loc_prec']} and its {precinct['tot']} people from {precinct['dist_id']} to {smallest_neighbor}...")
                     #prepare to reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
                     draw_to_do = (precinct['dist_id'], precinct['loc_prec'], smallest_neighbor)
                     draws_to_do.append(draw_to_do)
@@ -449,31 +451,44 @@ def mapwide_pop_swap(df):
     for draw in draws_to_do:
         donor_district, precinct, acceptor_district = draw
         #make sure donor district isn't now too small to be giving away precincts
-        if (population_sum(df, 'tot', donor_district) >= target_pop and
-            population_sum(df, 'tot', acceptor_district) <= target_pop):
+        if population_sum(df, 'tot', acceptor_district) <= target_pop + (allowed_deviation / 2):
+        #if population_sum(df, 'tot', donor_district) >= target_pop - (allowed_deviation / 2): #try with some leeway
+            #and population_sum(df, 'tot', acceptor_district) <= target_pop): #I think this condition slows down convergence significantly
+            #it does, but without it, it looks like you can get stuck in an oscillating pattern where the same districts donate back and forth forever
+            #2/24/2023: with seed 2, the map reached a state after about 15 swaps where it went from a deviation of 175575 to 283549 and back
+            #as district 1 kept swapping the same precincts out and back in
+            #let's see if acceptor-only works
+            #2/24/2023: it doesn't; after about swap 10, it got in a cycle between 294033, 277934, 299705, 281114, 277934, 299705, 277394...
+            #with both conditions, population_deviation is strictly descending; with just one it can get into oscillatory cycles
+            #with neither it seems to be much harder to keep it on a downward trajectory because precincts can just shuffle endlessly
             draw_into_district(df, precinct, acceptor_district)
 
     #At THIS point, it should be possible to fix any district that is fully surrounded
     #by dist_ids other than its own. (Redraw it to match majority dist_id surrounding it)
 
     print(district_pops(df))
-    print(f"Interior districts: {interior_count}, border districts: {border_count}")
+    #print(f"Interior districts: {interior_count}, border districts: {border_count}")
 
-def repeated_pop_swap(df, plot_each_step=True, stop_after=99):
+def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=True, stop_after=99):
     '''Do repeated pop swaps until populations are balanced. Check for fragmentation visually as you go."
     Hardcoded to 14 for now
     '''
     count = 1
     dist_pops = district_pops(df)
     time.sleep(1)
-    #For extra fun, you could keep track of the population deviation at each iteration
-    #and then plot them at the end to see how fast it converges and whether it's lienar, sigmoidal, etc.
-    while (max(dist_pops.values()) - min(dist_pops.values()) >= 100000):
-        print(f"Now doing swap {count}...")
+    population_deviation = max(dist_pops.values()) - min(dist_pops.values())
+    pop_devs_so_far = []
+    while population_deviation >= allowed_deviation:
+        if len(pop_devs_so_far) > 5 and pop_devs_so_far[-4:-2] == pop_devs_so_far[-2::]:
+            print("It looks like this swapping process is trapped in a cycle. Stopping")
+            break
+            #might want to add something for a "near-cycle" i.e. same value has shown up 3 times in the last 5 spins
+        print(f"Now doing swap cycle #{count}...")
         print("The most and least populous district differ by:")
-        print(max(dist_pops.values()) - min(dist_pops.values()))
+        print(population_deviation)
+        pop_devs_so_far.append(population_deviation)
         time.sleep(1)
-        mapwide_pop_swap(df)
+        mapwide_pop_swap(df, allowed_deviation)
         if plot_each_step:
             plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
         count += 1
@@ -481,8 +496,10 @@ def repeated_pop_swap(df, plot_each_step=True, stop_after=99):
             print(f"You've now swapped {count} times. Stopping")
             break
         dist_pops = district_pops(df)
-    if max(dist_pops.values()) - min(dist_pops.values()) <= 100000:
+        population_deviation = max(dist_pops.values()) - min(dist_pops.values())
+    if population_deviation <= allowed_deviation:
         print("You've reached your population balance target. Hooray!")
+    print(f"Population deviation at every step was: \n{pop_devs_so_far}")
 
 
 def find_neighboring_districts(df, lst, include_None=True):
