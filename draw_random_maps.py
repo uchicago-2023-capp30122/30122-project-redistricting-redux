@@ -287,7 +287,7 @@ def plot_dissolved_map(df, dcol, rcol):
     df_dists.reset_index(drop=True)
 
     df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
-    df_dists['point_swing'] = df_dists['raw_margin'].round(3)*100
+    df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
 
     df_dists.plot(column='raw_margin', cmap='seismic_r', vmin=-max(df_dists['raw_margin']),
                                                          vmax=max(df_dists['raw_margin']))
@@ -298,7 +298,7 @@ def plot_dissolved_map(df, dcol, rcol):
         #TODO: Make font size reasonable, plot truncated floats, perhaps in white
         plt.pyplot.annotate(text=row['point_swing'], 
                             xy=(row['center'].x, row['center'].y), 
-                            horizontalalignment='center')
+                            horizontalalignment='center', fontsize=2)
     #for future reference: districts.loc[1]['center'].x, districts.loc[1]['center'].y, districts.loc[1]['raw_margin'].round(2)
     #Why is this map so much redder than the by-precinct one?
     #you want to set vmax to abs(max(df_dists['raw_margin'])), and vmin to negative that, i think
