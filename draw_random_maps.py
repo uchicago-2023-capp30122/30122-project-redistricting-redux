@@ -289,8 +289,8 @@ def plot_dissolved_map(df, dcol, rcol):
     df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
     df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
 
-    df_dists.plot(column='raw_margin', cmap='seismic_r', vmin=-max(df_dists['raw_margin']),
-                                                         vmax=max(df_dists['raw_margin']))
+    df_dists.plot(column='raw_margin', cmap='seismic_r', vmin=-max(abs(df_dists['raw_margin'])),
+                                                         vmax=max(abs(df_dists['raw_margin'])))
     
     #Annotating
     #https://stackoverflow.com/questions/38899190/geopandas-label-polygons
