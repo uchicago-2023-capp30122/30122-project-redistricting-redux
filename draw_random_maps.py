@@ -14,6 +14,9 @@ import matplotlib as plt
 from ast import literal_eval
 from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density #not sure i did this relative directory right
 
+### DATA INGESTION FUNCTIONS (to be split off into separate file when data
+#source is switched over to Redistricting Data Hub)
+
 def startup_2018(init_neighbors=False):
     '''
     Get the GA 2018 data ready to do things with.
@@ -37,6 +40,7 @@ def startup():
     '''
     Get the GA 2020 data ready to do things with.
     Generalize to other states when API call becomes functional.
+
     Inputs:
         -none (for now, give it a state or state postal code abbrev later)
     Returns (geopandas GeoDataFrame): 
@@ -44,17 +48,6 @@ def startup():
     #TODO: implement
     pass
 
-###DRAWING-RELATED FUNCTIONS###
-
-def clear_dist_ids(df):
-    '''
-    Clears off any district IDs that precincts may have been assigned in the
-    past. Call this between calls to any map-drawing function.
-    Inputs:
-        df (geopandas GeoDataFrame)
-    Returns: None, modifies GeoDataFrame in-place
-    '''
-    df['dist_id'] = None
 
 def set_precinct_neighbors(df):
     '''
@@ -91,9 +84,15 @@ def set_precinct_neighbors(df):
 def affix_neighbors_list(df, neighbor_filename):
     '''
     Affix an adjacency list of neighbors to the appropriate csv.
+    DO NOT CALL THIS until functions have been rewritten to use GEOID20 instead
+    of loc_prec. It seems like the apostrophes and commas in some loc_prec 
+    names are breaking the literal_eval attempt, and GEOID20s have neither of those.
+
     Input:
         -df(geopandas GeoDataFrame): precinct/VTD-level data for a state
         -neighbor_filename (str): name of file where neighbors list is
+
+    Returns: None, modifies df in-place
     '''
 
     #2018 Open Precincts neighbors filename: "test_dfs/ga_2018_neighbors.csv"
@@ -101,11 +100,23 @@ def affix_neighbors_list(df, neighbor_filename):
     #also, maybe make sure it's not somehow sorted so as to make the list in the wrong order?
     neighbor_csv = pd.read_csv(neighbor_filename)
     neighbor_list = neighbor_csv['neighbors'] #this comes in as a string, has to be list-ified
-    #deserialize, TODO: use re to make this neater
+    #deserialize #TODO: Make this neater, with re
     df['neighbors'] = neighbor_list
     df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x.replace("\n", "").replace("' '", "', '")), dtype=object))
-    #this doesn't work exactly right on loc_precs; hopefully GEOID20 is standard enough that it works on it
-    #i think it's because the commas and single quotes mess stuff up
+
+
+###DRAWING-RELATED FUNCTIONS###
+
+def clear_dist_ids(df):
+    '''
+    Clears off any district IDs that precincts may have been assigned in the
+    past. Call this between calls to any map-drawing function.
+    Inputs:
+        df (geopandas GeoDataFrame)
+
+    Returns: None, modifies GeoDataFrame in-place
+    '''
+    df['dist_id'] = None
 
 def draw_into_district(df, precinct, id):
     '''
@@ -117,8 +128,7 @@ def draw_into_district(df, precinct, id):
     Inputs:
         -df (GeoPandas GeoDataFrame):
         -precinct(str): ID of the precinct to find and draw into district.
-        -id (anything, but probably int): Name or number of the district to be
-        drawn into.
+        -id (int): Number of the district to be drawn into.
 
     Returns: Nothing, modifies df in-place
     '''
@@ -127,24 +137,29 @@ def draw_into_district(df, precinct, id):
 
 def draw_chaos_district(df, target_pop, id, curr_precinct=None):
     '''
-    Draw a random district. Select a random starting precinct, use draw_into_district
-    to give it a dist_id, then repeatedly call draw_into_district on random
-    neighbors of precincts already in the district being drawn.
+    Draw a random district by selecting a random starting precinct at a relatively
+    empty spot on the map, use draw_into_district() to give it a dist_id, then 
+    move to a random unfilled neighbor, call draw_into_district() on that
+    neighbor, and repeat.
 
     Terminates if the district reaches a target population value, or if there
-    are no eligible empty neighboring precincts to keep drawing into.
+    are no eligible empty neighboring precincts to keep drawing into (i.e. is
+    "trapped" by surrounding precincts that have already been drawn into other
+    districts).
 
     Inputs:
-        -df (geopandas GeoDataFrame): 
+        -df (geopandas GeoDataFrame): state data by precinct/VTD
         -target-pop (int): target population of each district. When drawing a 
         state map, this will be 1/n, where n is the total population of the state
-        as measured in the data.
-        -id (any, usually int): The label to give precincts within the district.
-        For a state map, this will usually be 1 for the first district drawn,
-        2 for the second, etc.
-        -curr_precinct (str): the current precinct being drawn into. When function
-        is initialized without this keyword argument, it selects an empty precinct
-        at random.
+        as measured in df.
+        -id (int): The label for the district being drawn (e.g. 1 for the 
+        1st district, 2 for the 2nd, etc.
+        -curr_precinct (str): name (GEOID20) of the current precinct being drawn 
+        into. Function is initialized without this keyword argument, and continues
+        by selecting the next precinct to draw and calling itself again with
+        that precinct's name in this argument.
+
+    Returns: None, modifies df in-place
     '''
     if population_sum(df, 'tot', district=id) >= target_pop:
         print("Target population met or exceeded. Ending district draw")
@@ -220,9 +235,16 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
 
 def all_allowed_neighbors_of_district(df, id):
     '''
-    Ascertain if there are any allowed neighbors anywhere for a district. 
-    If this returns a list of length 0, it is impossible to keep drawing a 
-    contiguous district.
+    Ascertain if there are any precincts bordering an in-progress district
+    which are empty and available to draw into. If this returns a list of 
+    length 0, it is impossible to keep drawing a contiguous district.
+
+    Inputs:
+        -df (geopandas GeoDataFrame): state level data by precinct/VTD
+        -id (int): dist_id of the district you're investigating
+
+    Returns (list of strings): IDs of available precincts.
+    TODO: Can this return a set instead of a list?
     '''
     nabe_set = set()
     nabes_so_far = list(df[df.dist_id == id]['neighbors']) #use np.union1d and set here
@@ -231,7 +253,7 @@ def all_allowed_neighbors_of_district(df, id):
             nabe_set.add(nabe)
     #print(nabe_set)
 
-    #helperize this
+    #TODO: helperize this
     allowed_neighbors = []
     for nabe in nabe_set:
         nabe_index = df.index[df['loc_prec'] == nabe].tolist()
@@ -241,16 +263,24 @@ def all_allowed_neighbors_of_district(df, id):
 
     return allowed_neighbors
 
-def draw_chaos_state_map(df, num_districts, seed=2023, clear_first=True, export=False):
+def draw_chaos_state_map(df, num_districts, seed=2023, clear_first=True, export_to=None):
     '''
-    Uses draw_chaos_district() to draw a map of random districts of equal
-    population for the whole state.
-    FINISH DOCSTRING
+    Uses draw_chaos_district() to attempt to draw a map of random districts of 
+    equal population for the whole state. Is very likely to result in a map
+    with extreme population deviation between districts, to be fixed later
+    with repeated_pop_swap().
 
     Inputs:
-        -df (Geopandas GeoDataFrame): set of precincts or ideally census blocks
-        for state
+        -df (Geopandas GeoDataFrame): state data by precinct/VTD
         -num_districts (int): Number of districts to draw (for Georgia, that's 14)
+        -seed (int): Seed for random number generation, for replicability
+        -clear_first (boolean): Determines whether to erase any dist_id
+        assignments already in map. Should not be set to False unless
+        debugging.
+        -export_to (str): File location to export map district data to when
+        drawing is completed. Used for replicability.
+
+    Returns: None, modifies df in-place
     '''
     if clear_first:
         print("Clearing off previous district drawings, if any...")
@@ -271,84 +301,20 @@ def draw_chaos_state_map(df, num_districts, seed=2023, clear_first=True, export=
     print(district_pops(df))
 
     #allow for export so df is reproducible
-    if export:
-        export_df_to_file(df)
+    if export_to is not None:
+        pass #TODO: figure out minimum export and export it as csv
+        #probably: GEOID20, dist_id
 
-### PLOTTING FUNCTIONS ###
 
-def plot_dissolved_map(df, dcol, rcol):
-    '''
-    Plot a map without pesky precinct lines in it. FINISH DOCSTRING
-    '''
-    #df = df[['loc_prec', 'G18DGOV', 'G18RGOV', 'tot', 'geometry', 'dist_id', 'raw_margin']]
-    #print(df)
-    print("Dissolving precincts to full districts...")
-    df_dists = df.dissolve(by='dist_id')
-    df_dists.reset_index(drop=True)
-
-    df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
-    df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
-
-    df_dists.plot(column='raw_margin', cmap='seismic_r', vmin=-.6,
-                                                         vmax=.6)
-    
-    #Annotating
-    #https://stackoverflow.com/questions/38899190/geopandas-label-polygons
-    for idx, row in df_dists.iterrows():
-        #TODO: Make font size reasonable, plot truncated floats, perhaps in white
-        plt.pyplot.annotate(text=row['point_swing'], 
-                            xy=(row['center'].x, row['center'].y), 
-                            horizontalalignment='center', fontsize=2)
-    #for future reference: districts.loc[1]['center'].x, districts.loc[1]['center'].y, districts.loc[1]['raw_margin'].round(2)
-    #Why is this map so much redder than the by-precinct one?
-    #you want to set vmax to abs(max(df_dists['raw_margin'])), and vmin to negative that, i think
-    #so that dead even is always in the middle
-
-    #TODO: Add a legend of dist_ids that doesn't overlap with map
-
-    timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = 'maps/ga_testmap_' + timestamp
-    plt.pyplot.savefig(filepath, dpi=300) 
-    print(f"District map saved to {filepath}")
-
-def plot_redblue_by_district(df, dcol, rcol, num_dists=14):
-    '''
-    Outputs a map of the state that color-codes each district by the partisan
-    balance of its vote, i.e. dark blue if it overwhelmingly voted for Democrat,
-    dark red if it overwhelmingly voted for Republican, and some neutral for if it
-    was close to even.
-    Call this only AFTER drawing a map of districts.
-    FINISH DOCSTRING
-    Inputs:
-        -df (geopandas DataFrame): 
-        -dcol (str): indicates name of geopandas column
-        -rcol (str):
-        -num_dists (int):
-    Outputs:
-        -plot as .png file in folder
-    '''
-    
-    df['raw_margin'] = None
-    for i in range(1, num_dists+1): #this should be doable on one line vectorized
-        df.loc[df.dist_id == i, 'raw_margin'] = blue_red_margin(df, dcol, rcol, i)
-
-    #TODO: figure out how to push legend off map, or maybe turn it into categorical color bar
-    df.plot(column='raw_margin', cmap='seismic_r')
-    #fig, ax = plt.subplots(1)
-    #sm = plt.cm.ScalarMappable(cmap='seismic_r')
-    #cbar = fig.colorbar(sm) #all of these extremely basic things from many matplotlib StackOverflow answers fail
-
-    timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = 'maps/ga_testmap_' + timestamp
-    plt.pyplot.savefig(filepath, dpi=300) 
-    print(f"District map saved to {filepath}")
+### MAP CLEANUP FUNCTIONS ###
 
 
 def get_all_holes(df):
     '''
     Get a dataframe of all precincts that have not yet been drawn into a district.
+    Helper for fill_district_holes().
     Inputs:
-        -df(geopandas GeoDataFrame)
+        -df(geopandas GeoDataFrame): state data by precinct/VTD
 
     Returns (df object): set of precincts with all their attributes
     '''
@@ -357,12 +323,17 @@ def get_all_holes(df):
 
 def fill_district_holes(df, map_each_step=False):
     '''
-    Generate all the holes, then iterate across all holes and do
-    something to them.
-    Then maybe surround it with a while loop
-    FINISH DOCSTRING
+    Helper function for draw_chaos_state_map. Determine where the remaining 
+    unfilled precincts are across the map, then expand existing districts 
+    out into those unfilled precincts (or into the gaps within the districts),
+    and iterate until every precinct on the map has a dist_id.
+
     Inputs:
-        -df (geopandas GeoDataFrame):
+        -df (geopandas GeoDataFrame): state data by precinct/VTD
+        -map_each_step (boolean): debugging parameter that checks how full
+        the map has gotten with each iteration by plotting a map after each
+        step.
+
     Returns: None, returns df in-place
     '''
     holes = df.loc[df['dist_id'].isnull()]
@@ -375,34 +346,36 @@ def fill_district_holes(df, map_each_step=False):
         for index, hole in holes.iterrows():
             real_dists_ard_hole = find_neighboring_districts(df, hole['neighbors'], include_None=False)
             if len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
-                neighbor_dist_id = int(list(real_dists_ard_hole)[0]) #extract that district id
+                neighbor_dist_id = int(list(real_dists_ard_hole)[0]) 
                 #THIS WILL BREAK IF YOU GIVE YOUR DISTRICTS ANY ID OTHER THAN INTEGERS
-                #print(f"Now drawing {hole['loc_prec']} into district {neighbor_dist_id}...")
                 draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
             elif len(real_dists_ard_hole) >= 2: #i.e. if this could go into one of two other districts
-                #a cleaner way to do this might involve finding the neighboring district
-                #with least population and always drawing into that, so as to make the
-                #pop-swap stuff to come later less onerous.
-                #neighbor_pops_dict = {id: population_sum(df, 'tot', id) for id in real_dists_ard_hole}
-                #print(neighbor_pops_dict)
+                #TODO: Make this find the neighboring district with least population 
+                #and always draw into that, to make upcoming pop-swap less onerous
                 neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
-                #print(f"drawing into district {neighbor_dist_id} tho")
                 draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
         
         if map_each_step:
             print(f"Exporting map for go-round number {go_rounds}...")
-            plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
+            plot_redblue_precincts(df, "G18DGOV", "G18RGOV")
+
     print("Cleanup complete. All holes in districts filled. Districts expanded to fill empty space.")
 
 
 def mapwide_pop_swap(df, allowed_deviation=70000):
     '''
-    If we're going to get to close-to-even populations, this is the approach
-    I think I can do with my current skills.
+    Iterates through the precincts in a state with a drawn district map and 
+    attempts to balance their population by moving  precincts from overpopulated
+    districts into underpopulated ones.
 
     Inputs:
-        -df (geopandas GeoDataFrame): every precinct should have a dist_id
-        -allowed_deviation (int)
+        -df (geopandas GeoDataFrame): state data by precinct/VTD. Every precinct 
+        should have a dist_id assigned before calling this function.
+        -allowed_deviation (int): Largest allowable difference between the 
+        population of the most populous district and the population of the 
+        least populous district.
+
+    Returns: None, modifies df in-place
     '''
     #QUESTION: Can you iterate geographically rather than by df index?
     #TODO: Figure out how to deal with contiguity issues
@@ -449,9 +422,25 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
 
     print(district_pops(df))
 
-def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=True, stop_after=99):
-    '''Do repeated pop swaps until populations are balanced. Check for fragmentation visually as you go."
-    Hardcoded to 14 for now
+
+def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_after=99):
+    '''Repeatedly calls mapwide_pop_swap() until populations of districts are 
+    within allowable deviation range. Terminates early if the procedure is 
+    unable to equalize district populations any further. 
+    
+    Inputs:
+        -df (geopandas GeoDataFrame): state-level precinct/VTD data. Should
+        have dist_ids assigned to every precinct.
+        -allowed_deviation (int): Largest allowable difference between the 
+        population of the most populous district and the population of the 
+        least populous district.
+        -plot_each_step (boolean): if True, tells program to export a map
+        of each iteration of mapwide_pop_swap(), to check for district 
+        fragmentation and/or inspect progress or cycles visually.
+        -stop_after (int): manual number of steps to stop after if procedure
+        hasn't yet terminated.
+
+    Returns: None, modifies df in place
     '''
     count = 1
     dist_pops = district_pops(df)
@@ -470,7 +459,7 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=True, stop_aft
         time.sleep(1)
         mapwide_pop_swap(df, allowed_deviation)
         if plot_each_step:
-            plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
+            plot_redblue_precincts(df, "G18DGOV", "G18RGOV")
         count += 1
         if count > stop_after:
             print(f"You've now swapped {count} times. Stopping")
@@ -484,13 +473,16 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=True, stop_aft
 
 def find_neighboring_districts(df, lst, include_None=True):
     '''
-    Helperizing this function. Takes in a list of precinct names, and 
-    outputs a set of all districts those precincts have been drawn into.
+    Takes in a list of precinct names, and outputs a set of all districts 
+    those precincts have been drawn into.
+
     Inputs:
         -df: geopandas GeoDataFrame
-        -lst (NumPy array): list of neighbors as found by df['neighbors']
+        -lst (NumPy array): list of neighbors, as found by calling
+         df['neighbors']
         -include_None (boolean): Determines whether the returned set includes
         None if some neighbors aren't drawn into districts.
+
     Returns (set): set of dist_ids
     '''
     dists_theyre_in = set()
@@ -509,9 +501,13 @@ def recapture_orphan_precincts(df):
     '''
     Finds precincts that are entirely disconnected from the bulk of their 
     district and reassigns them to a surrounding district.
-    This is very slow. Find a way to isolate the rows worth iterating over first
+    This is very slow. TODO: Find a way to isolate the rows worth iterating over 
+    first, ideally vectorized, and then just iterate across those
+
     Inputs:
-        -df (geopandas GeoDataFrame)
+        -df (geopandas GeoDataFrame): state level precinct/VTD data. Should
+        have dist_id assigned for every precinct.
+
     Returns: None, modifies df in-place 
     '''
     #make a complex boolean to filter the df and then just iterate on that
@@ -522,37 +518,135 @@ def recapture_orphan_precincts(df):
             print(f"Reclaiming orphan precinct {row['loc_prec']}...")
             draw_into_district(df, row['loc_prec'], random.choice(tuple(neighboring_districts)))
 
+
+### PLOTTING FUNCTIONS ###
+
+
+def plot_dissolved_map(df, dcol, rcol, export_to=None):
+    '''
+    Plot a map that dissolves precinct boundaries to show districts as solid
+    colors based on their vote margin. Displays it on screen if user's 
+    device allows for that.
+
+    Inputs:
+        -df (geopandas GeoDataFrame): state precinct/VTD-level data, with 
+        polygons
+        -dcol (str): Name of column that contains Democratic voteshare data
+        (i.e. estimated number of votes cast for Joe Biden in the precinct in
+        the November 2020 presidential election)
+        -rcol (str): Name of the column that contains Republican voteshare data
+        (i.e. estimated number of votes cast for Donald Trump in the precinct
+        in the November 2020 presidnetial election)
+        -export_to (str or None): TODO: location to export the map image to.
+
+    Returns: None, displays plot on-screen and saves image to file
+    '''
+    print("Dissolving precincts to full districts...")
+    df_dists = df.dissolve(by='dist_id')
+    df_dists.reset_index(drop=True)
+
+    df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
+    df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
+
+    df_dists.plot(column='raw_margin', cmap='seismic_r', vmin=-.6,
+                                                         vmax=.6)
+    
+    #Annotating
+    #https://stackoverflow.com/questions/38899190/geopandas-label-polygons
+    for idx, row in df_dists.iterrows():
+        #TODO: Make font size reasonable, plot truncated floats, perhaps in white
+        plt.pyplot.annotate(text=row['point_swing'], 
+                            xy=(row['center'].x, row['center'].y), 
+                            horizontalalignment='center', fontsize=4)
+    #Why is this map so much redder than the by-precinct one?
+
+    #TODO: Add a legend of dist_ids that doesn't overlap with map
+
+    timestamp = datetime.now().strftime("%m%d-%H%M%S")
+    filepath = 'maps/ga_testmap_' + timestamp
+    plt.pyplot.savefig(filepath, dpi=300) 
+    print(f"District map saved to {filepath}")
+
+def plot_redblue_precincts(df, dcol, rcol, num_dists=14):
+    '''
+    Plot a map that color-codes each precinct by the partisan margin of the vote
+    in the district it's part of, i.e. dark blue if it largely voted Democratic,
+    dark red if it overwhelmingly voted Republican, and white if it was close to even.
+
+    Inputs:
+        -df (geopandas DataFrame): state data by precincts/VTDs, with polygons
+        -dcol (str): Name of column that contains Democratic voteshare data
+        (i.e. estimated number of votes cast for Joe Biden in the precinct in
+        the November 2020 presidential election)
+        -rcol (str): Name of the column that contains Republican voteshare data
+        (i.e. estimated number of votes cast for Donald Trump in the precinct
+        in the November 2020 presidnetial election)
+        -num_dists (int):
+        -export_to (str or None): TODO: location to export the map to
+
+    Returns: None, displays plot on screen and/or saves image to file
+    '''
+    
+    #TODO: Move this to df setup, and have it be by precinct, with dissolve aggfunc-ing it 
+    df['raw_margin'] = None
+    for i in range(1, num_dists+1): #this should be doable on one line vectorized
+        df.loc[df.dist_id == i, 'raw_margin'] = blue_red_margin(df, dcol, rcol, i)
+
+    #TODO: figure out how to push legend off map, or maybe turn it into categorical color bar
+    df.plot(column='raw_margin', cmap='seismic_r')
+    #fig, ax = plt.subplots(1)
+    #sm = plt.cm.ScalarMappable(cmap='seismic_r')
+    #cbar = fig.colorbar(sm) #all of these extremely basic things from many matplotlib StackOverflow answers fail
+
+    timestamp = datetime.now().strftime("%m%d-%H%M%S")
+    filepath = 'maps/ga_testmap_' + timestamp
+    plt.pyplot.savefig(filepath, dpi=300) 
+    print(f"District map saved to {filepath}")
+
+
+### STATS FUNCTIONS (to be moved over to stats or elsewhere, perhaps) ###
+
 def results_by_district(df):
     '''
     Compresses the df down to a table of by-district stats, where each row
-    represents entire area with one dist_id. e.g. population, racial demographics,
-    Dem vote, Rep vote, and margin, for easier calling and plotting .
+    represents the entire area with one dist_id. Dissolve process is slow,
+    but could speed up plotting and metrics generation.
 
-    Possibly exports as csv for replicability.
+    Inputs:
+        -df (geopandas GeoDataFrame): state level precinct/VTD data. Should
+        have dist_id assigned for every precinct.
+
+    Returns (geopandas GeoDataFrame): state level data by custom district
     '''
     df = df.drop(['neighbors'])
     df_dists = df.dissolve(by='dist_id', aggfunc=sum)
     df_dists.reset_index(drop=True)
+
     return df_dists
 
 
 def district_pops(df):
-    '''Outputs the population of the districts from 1 to n'''
+    '''
+    Outputs the population of each district drawn so far.
+
+    Inputs:
+        -df (geopandas GeoDataFrame): state data by precinct/VTD
+    
+    Returns (dict): dictionary with dist_ids as keys and population totals
+    as values
+    '''
     pops_dict = {}
     for i in range(1, max(df.dist_id)+1):
         pops_dict[i] = population_sum(df, 'tot', district=i)
     return pops_dict
 
+### RUNTIME PROCEDURE (to be made its own file) ###
 
 if __name__ == '__main__':
-    ga_data = startup()
+    ga_data = startup_2018()
     print("Drawing random map:")
     draw_chaos_state_map(ga_data, 14)
-    print("Plotting non-cleaned districts on state map:")
-    plot_redblue_by_district(ga_data, "G18DGOV", "G18RGOV")
-    print("Cleaning up districts one iteration...")
-    fill_district_holes(ga_data)
+    print("Attempting to equalize district populations:")
+    repeated_pop_swap(ga_data, allowed_deviation=70000, stop_after=20)
     print("Plotting cleaned districts on state map for contrast:")
-    plot_redblue_by_district(ga_data, "G18DGOV", "G18RGOV")
-    print("Clearing districts...")
-    clear_dist_ids(ga_data)
+    plot_dissolved_map(ga_data, "G18DGOV", "G18RGOV")
