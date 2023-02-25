@@ -442,8 +442,9 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
         if population_sum(df, 'tot', acceptor_district) <= target_pop + (allowed_deviation / 2):
             draw_into_district(df, precinct, acceptor_district)
 
-    #TODO: fix any district that is fully surrounded by dist_ids other than its 
+    #fix any district that is fully surrounded by dist_ids other than its 
     #own (redraw it to match majority dist_id surrounding it)
+    recapture_orphan_precincts(df)
 
     print(district_pops(df))
 
@@ -470,7 +471,7 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=True, stop_aft
         if plot_each_step:
             plot_redblue_by_district(df, "G18DGOV", "G18RGOV")
         count += 1
-        if count >= stop_after:
+        if count > stop_after:
             print(f"You've now swapped {count} times. Stopping")
             break
         dist_pops = district_pops(df)
@@ -507,16 +508,18 @@ def recapture_orphan_precincts(df):
     '''
     Finds precincts that are entirely disconnected from the bulk of their 
     district and reassigns them to a surrounding district.
+    This is very slow. Find a way to isolate the rows worth iterating over first
     Inputs:
         -df (geopandas GeoDataFrame)
     Returns: None, modifies df in-place 
     '''
-    for _, row in df.iterrows():
+    #make a complex boolean to filter the df and then just iterate on that
+
+    for idx, row in df.iterrows():
         neighboring_districts = find_neighboring_districts(df, row['neighbors']) #include_None should be unnecessary
         if row['dist_id'] not in neighboring_districts: 
-            print(f"{row['dist_id']} not in {tuple(neighboring_districts)})
-            row['dist_id'] = random.choice(tuple(neighboring_districts))
-            print(f"It's been reassigned to {row['dist_id']} now")
+            print(f"Reclaiming orphan precinct {row['loc_prec']}...")
+            draw_into_district(df, row['loc_prec'], random.choice(tuple(neighboring_districts)))
 
 def results_by_district(df):
     '''
