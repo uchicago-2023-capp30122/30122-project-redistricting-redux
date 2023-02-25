@@ -503,6 +503,21 @@ def find_neighboring_districts(df, lst, include_None=True):
         return {i for i in dists_theyre_in if i is not None}
 
 
+def recapture_orphan_precincts(df):
+    '''
+    Finds precincts that are entirely disconnected from the bulk of their 
+    district and reassigns them to a surrounding district.
+    Inputs:
+        -df (geopandas GeoDataFrame)
+    Returns: None, modifies df in-place 
+    '''
+    for _, row in df.iterrows():
+        neighboring_districts = find_neighboring_districts(df, row['neighbors']) #include_None should be unnecessary
+        if row['dist_id'] not in neighboring_districts: 
+            print(f"{row['dist_id']} not in {tuple(neighboring_districts)})
+            row['dist_id'] = random.choice(tuple(neighboring_districts))
+            print(f"It's been reassigned to {row['dist_id']} now")
+
 def results_by_district(df):
     '''
     Compresses the df down to a table of by-district stats, where each row
