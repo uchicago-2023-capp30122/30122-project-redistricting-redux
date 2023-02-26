@@ -4,7 +4,7 @@ Redistricting Hub 2020 data instead of the Georgia OpenPrecincts 2018 data.
 
 OLD_NAME    NEW_NAME    DESCRIPTION
 loc_prec    GEOID20     unique identifier of precinct/VTD 
-tot         POP100      total population as calculated in the relevant year
+tot         Tot_2020_t      total population as calculated in the relevant year
 G18DGOV     G20PREDBID  vote total for the Democratic candidate statewide
 G18RGOV     G20PRERTRU  vote total for the Republican candidate statewide
 geometry    geometry    This is the same

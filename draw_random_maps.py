@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 import matplotlib as plt
 from ast import literal_eval
-from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density #not sure i did this relative directory right
+from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density, set_blue_red_diff #not sure i did this relative directory right
 
 ### DATA INGESTION FUNCTIONS (to be split off into separate file when data
 #source is switched over to Redistricting Data Hub)
@@ -31,22 +31,30 @@ def startup_2018(init_neighbors=False):
     if init_neighbors:
         print("Calculating district neighbors:")
         set_precinct_neighbors(ga_data)
-        print("District neighbors calculated")
+        print("Precinct neighbors calculated")
     ga_data['dist_id'] = None #use .isnull() to select all of these
 
     return ga_data
 
-def startup():
+def startup_2020(init_neighbors=False):
     '''
     Get the GA 2020 data ready to do things with.
     Generalize to other states when API call becomes functional.
 
     Inputs:
         -none (for now, give it a state or state postal code abbrev later)
-    Returns (geopandas GeoDataFrame): 
+    Returns (geopandas GeoDataFrame): df for 2020 Georgia Redistricting Data Hub
     '''
-    #TODO: implement
-    pass
+    print("Importing Georgia 2020 Redistricting Data Hub data...")
+    fp = "merged_shps/GA_VTD_merged.shp"
+    ga_data = gpd.read_file(fp)
+    print("Georgia 2020 Redistricting Data Hub shapefile data imported")
+    if init_neighbors:
+        set_precinct_neighbors(ga_data)
+        print("Precinct neighbors calculated")
+    ga_data['dist_id'] = None
+
+    return ga_data
 
 
 def set_precinct_neighbors(df):
@@ -66,9 +74,9 @@ def set_precinct_neighbors(df):
     df['neighbors'] = None
     
     for index, row in df.iterrows():
-        neighbors = np.array(df[df.geometry.touches(row['geometry'])].loc_prec)
+        neighbors = np.array(df[df.geometry.touches(row['geometry'])].GEOID20)
         #maybe there's a way to update neighbors for all the neighbors this one finds too? to speed up/reduce redundant calcs?
-        overlap = np.array(df[df.geometry.overlaps(row['geometry'])].loc_prec)
+        overlap = np.array(df[df.geometry.overlaps(row['geometry'])].GEOID20)
         if len(overlap) > 0:
             neighbors = np.union1d(neighbors, overlap)
         #If you convert to tuple here, later procedures to find available neighbors can use sets instead of lists
@@ -78,15 +86,13 @@ def set_precinct_neighbors(df):
             print(f"Neighbors for precinct {index} calculated")
     
     print("Saving neighbors list to csv so you don't have to do this again...")
-    df['neighbors'].to_csv('test_dfs/ga_2018_neighbors.csv')
+    df['neighbors'].to_csv('merged_shps/GA_2020_neighbors.csv') #this now imports neighbors as an undifferentiated string!
+    #Is GEOID always the same length?
 
 
 def affix_neighbors_list(df, neighbor_filename):
     '''
     Affix an adjacency list of neighbors to the appropriate csv.
-    DO NOT CALL THIS until functions have been rewritten to use GEOID20 instead
-    of loc_prec. It seems like the apostrophes and commas in some loc_prec 
-    names are breaking the literal_eval attempt, and GEOID20s have neither of those.
 
     Input:
         -df(geopandas GeoDataFrame): precinct/VTD-level data for a state
@@ -95,14 +101,15 @@ def affix_neighbors_list(df, neighbor_filename):
     Returns: None, modifies df in-place
     '''
 
-    #2018 Open Precincts neighbors filename: "test_dfs/ga_2018_neighbors.csv"
+    #2020 Redistricting Data Hub filename: 'merged_shps/GA_2020_neighbors.csv'
     #do some exception/assertion checks: make sure length of neighbor list matches df
     #also, maybe make sure it's not somehow sorted so as to make the list in the wrong order?
     neighbor_csv = pd.read_csv(neighbor_filename)
     neighbor_list = neighbor_csv['neighbors'] #this comes in as a string, has to be list-ified
-    #deserialize #TODO: Make this neater, with re
+    #deserialize #TODO: fix this so neighbor arrays are of proper length and not running GEOID20s together
     df['neighbors'] = neighbor_list
     df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x.replace("\n", "").replace("' '", "', '")), dtype=object))
+
 
 
 ###DRAWING-RELATED FUNCTIONS###
@@ -132,7 +139,7 @@ def draw_into_district(df, precinct, id):
 
     Returns: Nothing, modifies df in-place
     '''
-    df.loc[df['loc_prec'] == precinct, 'dist_id'] = id
+    df.loc[df['GEOID20'] == precinct, 'dist_id'] = id
 
 
 def draw_chaos_district(df, target_pop, id, curr_precinct=None):
@@ -161,7 +168,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
 
     Returns: None, modifies df in-place
     '''
-    if population_sum(df, 'tot', district=id) >= target_pop:
+    if population_sum(df, district=id) >= target_pop:
         print("Target population met or exceeded. Ending district draw")
         return None #"break"
 
@@ -171,7 +178,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         #have neighbors that are all also empty.
         while len(neighboring_dists) != 0:
             curr_index = random.randint(0, len(df)-1)
-            curr_precinct = df.loc[curr_index, 'loc_prec']
+            curr_precinct = df.loc[curr_index, 'GEOID20']
             neighboring_dists = find_neighboring_districts(df, df.loc[curr_index, 'neighbors'],
                                                        include_None=False)
             #time.sleep(0.5)
@@ -179,14 +186,14 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         #time.sleep(1)
 
     else: 
-        curr_index = df.index[df['loc_prec'] == curr_precinct].tolist()[0]
+        curr_index = df.index[df['GEOID20'] == curr_precinct].tolist()[0]
         print(f"We continue with: {curr_precinct}")
 
-    #if df.loc[df.loc_prec==curr_precinct,'dist_id'].item() is None:
+    #if df.loc[df.GEOID20==curr_precinct,'dist_id'].item() is None:
     if df.loc[curr_index, 'dist_id'] is None:
         #print(f"Now drawing {curr_precinct} into district")
         draw_into_district(df, curr_precinct, id)
-        print(f"Current district population: {population_sum(df, 'tot', district=id)}")
+        print(f"Current district population: {population_sum(df, district=id)}")
 
     all_neighbors = df.loc[curr_index, 'neighbors']
     #print(all_neighbors)
@@ -195,7 +202,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
     #TODO: consider helperizing and/or redoing as an elegant list comprehension
     allowed_neighbors = []
     for nabe in all_neighbors:
-        nabe_index = df.index[df['loc_prec'] == nabe].tolist()
+        nabe_index = df.index[df['GEOID20'] == nabe].tolist()
         #print(nabe, nabe_index)
         if df.loc[nabe_index[0], 'dist_id'] is None:
             allowed_neighbors.append(nabe)
@@ -204,7 +211,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
     if len(allowed_neighbors) == 0:
         print("No valid neighbors to draw into! Handling error case...")
  
-        dist_so_far = [] + list(df[df.dist_id == id]['loc_prec'])
+        dist_so_far = [] + list(df[df.dist_id == id]['GEOID20'])
 
         #handle if there are no valid neighbors and it's the first precinct for a new district
         #This should never trigger now that starting precinct must have empty neighbors.
@@ -256,7 +263,7 @@ def all_allowed_neighbors_of_district(df, id):
     #TODO: helperize this
     allowed_neighbors = []
     for nabe in nabe_set:
-        nabe_index = df.index[df['loc_prec'] == nabe].tolist()
+        nabe_index = df.index[df['GEOID20'] == nabe].tolist()
         #print(nabe, nabe_index)
         if df.loc[nabe_index[0], 'dist_id'] is None:
             allowed_neighbors.append(nabe)
@@ -342,22 +349,22 @@ def fill_district_holes(df, map_each_step=False):
         go_rounds += 1
         print(f"Starting cleanup go-round number {go_rounds}.")
         holes = df.loc[df['dist_id'].isnull()]
-        print(holes.shape)
+        print(f"({holes.shape[0]} unassigned precincts remaining)")
         for index, hole in holes.iterrows():
             real_dists_ard_hole = find_neighboring_districts(df, hole['neighbors'], include_None=False)
             if len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
                 neighbor_dist_id = int(list(real_dists_ard_hole)[0]) 
                 #THIS WILL BREAK IF YOU GIVE YOUR DISTRICTS ANY ID OTHER THAN INTEGERS
-                draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
+                draw_into_district(df, hole['GEOID20'], neighbor_dist_id)
             elif len(real_dists_ard_hole) >= 2: #i.e. if this could go into one of two other districts
                 #TODO: Make this find the neighboring district with least population 
                 #and always draw into that, to make upcoming pop-swap less onerous
                 neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
-                draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
+                draw_into_district(df, hole['GEOID20'], neighbor_dist_id)
         
         if map_each_step:
             print(f"Exporting map for go-round number {go_rounds}...")
-            plot_redblue_precincts(df, "G18DGOV", "G18RGOV")
+            plot_redblue_precincts(df)
 
     print("Cleanup complete. All holes in districts filled. Districts expanded to fill empty space.")
 
@@ -393,19 +400,19 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
         else: #if this precinct has neighbors in other districts:
 
             #get population of this precinct's district
-            this_prec_dist_pop = population_sum(df, 'tot', precinct['dist_id'])
+            this_prec_dist_pop = population_sum(df, district=precinct['dist_id'])
 
             #get current population of each neighboring district with below-target population
-            proper_neighbors = {dist : population_sum(df, 'tot', dist) 
+            proper_neighbors = {dist : population_sum(df, district=dist) 
                                 for dist in neighboring_dists 
                                 if dist != precinct['dist_id']
-                                and population_sum(df, 'tot', dist) < target_pop}
+                                and population_sum(df, district=dist) < target_pop}
             if len(proper_neighbors) > 0: #all neighbors are of higher population
                 if this_prec_dist_pop > target_pop:
                     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
                     smallest_neighbor = [k for k,v in proper_neighbors.items() if v == min(proper_neighbors.values())][0] #JANK
                     #prepare to reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
-                    draw_to_do = (precinct['dist_id'], precinct['loc_prec'], smallest_neighbor)
+                    draw_to_do = (precinct['dist_id'], precinct['GEOID20'], smallest_neighbor)
                     draws_to_do.append(draw_to_do)
 
     print("Doing all valid drawings one at a time...")
@@ -413,11 +420,12 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
         donor_district, precinct, acceptor_district = draw
         #make sure acceptor district isn't too large to be accepting precincts
         #see past commits for more notes re: cyclical behavior
-        if population_sum(df, 'tot', acceptor_district) <= target_pop + (allowed_deviation / 2):
+        if population_sum(df, district=acceptor_district) <= target_pop + (allowed_deviation / 2):
             draw_into_district(df, precinct, acceptor_district)
 
     #fix any district that is fully surrounded by dist_ids other than its 
     #own (redraw it to match majority dist_id surrounding it)
+    print("Reassigning districts 'orphaned' by swapping process...")
     recapture_orphan_precincts(df)
 
     print(district_pops(df))
@@ -457,9 +465,10 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_af
         print(population_deviation)
         pop_devs_so_far.append(population_deviation)
         time.sleep(1)
+        print("Finding valid precincts to swap... This could take a few seconds...")
         mapwide_pop_swap(df, allowed_deviation)
         if plot_each_step:
-            plot_redblue_precincts(df, "G18DGOV", "G18RGOV")
+            plot_redblue_precincts(df)
         count += 1
         if count > stop_after:
             print(f"You've now swapped {count} times. Stopping")
@@ -488,7 +497,7 @@ def find_neighboring_districts(df, lst, include_None=True):
     dists_theyre_in = set()
     for precinct_name in lst:
         #extract the number of the district of each neighbor.
-        dist_its_in = df.loc[df['loc_prec'] == precinct_name, 'dist_id'].iloc[0]
+        dist_its_in = df.loc[df['GEOID20'] == precinct_name, 'dist_id'].iloc[0]
         dists_theyre_in.add(dist_its_in)
     
     if include_None:
@@ -515,14 +524,13 @@ def recapture_orphan_precincts(df):
     for idx, row in df.iterrows():
         neighboring_districts = find_neighboring_districts(df, row['neighbors']) #include_None should be unnecessary
         if row['dist_id'] not in neighboring_districts: 
-            print(f"Reclaiming orphan precinct {row['loc_prec']}...")
-            draw_into_district(df, row['loc_prec'], random.choice(tuple(neighboring_districts)))
+            print(f"Reclaiming orphan precinct {row['GEOID20']}...")
+            draw_into_district(df, row['GEOID20'], random.choice(tuple(neighboring_districts)))
 
 
 ### PLOTTING FUNCTIONS ###
 
-
-def plot_dissolved_map(df, dcol, rcol, export_to=None):
+def plot_dissolved_map(df, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None):
     '''
     Plot a map that dissolves precinct boundaries to show districts as solid
     colors based on their vote margin. Displays it on screen if user's 
@@ -542,8 +550,11 @@ def plot_dissolved_map(df, dcol, rcol, export_to=None):
     Returns: None, displays plot on-screen and saves image to file
     '''
     print("Dissolving precincts to full districts...")
-    df_dists = df.dissolve(by='dist_id')
+    df_dists = df.dissolve(by='dist_id', aggfunc=sum)
     df_dists.reset_index(drop=True)
+    set_blue_red_diff(df_dists)
+    #will cause a ZeroDivisionError if any districts are exactly tied
+    df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
 
     df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
     df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
@@ -567,7 +578,7 @@ def plot_dissolved_map(df, dcol, rcol, export_to=None):
     plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
 
-def plot_redblue_precincts(df, dcol, rcol, num_dists=14):
+def plot_redblue_precincts(df, dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=14):
     '''
     Plot a map that color-codes each precinct by the partisan margin of the vote
     in the district it's part of, i.e. dark blue if it largely voted Democratic,
@@ -599,7 +610,7 @@ def plot_redblue_precincts(df, dcol, rcol, num_dists=14):
     #cbar = fig.colorbar(sm) #all of these extremely basic things from many matplotlib StackOverflow answers fail
 
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = 'maps/ga_testmap_' + timestamp
+    filepath = 'maps/ga20_testmap_' + timestamp
     plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
 
@@ -618,9 +629,12 @@ def results_by_district(df):
 
     Returns (geopandas GeoDataFrame): state level data by custom district
     '''
-    df = df.drop(['neighbors'])
+    df = df.drop(['neighbors'], axis=1)
     df_dists = df.dissolve(by='dist_id', aggfunc=sum)
     df_dists.reset_index(drop=True)
+    set_blue_red_diff(df_dists)
+    #will cause a ZeroDivisionError if any districts are exactly tied
+    df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
 
     return df_dists
 
@@ -637,7 +651,7 @@ def district_pops(df):
     '''
     pops_dict = {}
     for i in range(1, max(df.dist_id)+1):
-        pops_dict[i] = population_sum(df, 'tot', district=i)
+        pops_dict[i] = population_sum(df, district=i)
     return pops_dict
 
 ### RUNTIME PROCEDURE (to be made its own file) ###
@@ -649,4 +663,4 @@ if __name__ == '__main__':
     print("Attempting to equalize district populations:")
     repeated_pop_swap(ga_data, allowed_deviation=70000, stop_after=20)
     print("Plotting cleaned districts on state map for contrast:")
-    plot_dissolved_map(ga_data, "G18DGOV", "G18RGOV")
+    plot_dissolved_map(ga_data)

@@ -7,7 +7,7 @@ functions by: Matt Jackson
 #Separating basic stats that aren't *inherently* mapping functions into
 #their own file for better code organization
 
-def population_sum(df, colname, district=None):
+def population_sum(df, colname="Tot_2020_t", district=None):
     '''
     Calculates the total population across a state df, or district therein, of 
     all people designated a given way in a column. 'district' flag allows for
@@ -25,15 +25,32 @@ def population_sum(df, colname, district=None):
 
     return int(df[colname].sum())
 
+def set_blue_red_diff(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None):
+    '''
+    Gives the df a new attribute for raw difference in votes between the 
+    Democratic and Republican candidate
 
-def blue_red_margin(df, dcol, rcol, district=None):
+    Inputs: 
+        -df (Geopandas GeoDataFrame): state data by precinct/VTD
+        -dcol (str): name of the column in the data representing the Democratic
+        candidate's votes earned.
+        -rcol (str): name of the column in the data representing the Republican
+        candidate's votes earned.
+        -district (any): district ID. If None, calculates margin for the whole
+        state.
+    Returns: None, modifies df in place
+    '''
+    df['raw_dr_dif'] = df[dcol] - df[rcol]
+
+
+def blue_red_margin(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None):
     '''
     Returns the difference in votes, normalized to percentage points, between
     the Democratic candidate and the Republican candidate in the given area.
     Should only be called using candidates who actually ran against each other
     in the same race during the same election cycle.
     Inputs: 
-        -df (Geopandas GeoDataFrame)
+        -df (Geopandas GeoDataFrame): state data by precinct/VTD
         -dcol (str): name of the column in the data representing the Democratic
         candidate's votes earned.
         -rcol (str): name of the column in the data representing the Republican
@@ -67,7 +84,7 @@ def target_dist_pop(df, n=14):
     Returns (int): Target population value 
     '''
     #gonna have to change what "tot" is named based on data source
-    return population_sum(df, "tot") // n
+    return population_sum(df) // n
 
 def metric_area(df, district=None):
     '''
@@ -85,7 +102,7 @@ def metric_area(df, district=None):
 
     return df['area'].sum() * METERS_TO_KM
     #this doesn't seem to output the actual value for Georgia, which is 153910 sq km
-    #this outputs 217813
+    #this outputs 217785.269...
     #it may not matter that much if we're just using density comparatively
     #we can also use a fudge factor if we need it to be accurate
 
