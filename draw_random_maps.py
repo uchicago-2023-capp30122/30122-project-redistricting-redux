@@ -168,7 +168,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
 
     Returns: None, modifies df in-place
     '''
-    if population_sum(df, 'tot', district=id) >= target_pop:
+    if population_sum(df, district=id) >= target_pop:
         print("Target population met or exceeded. Ending district draw")
         return None #"break"
 
@@ -193,7 +193,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
     if df.loc[curr_index, 'dist_id'] is None:
         #print(f"Now drawing {curr_precinct} into district")
         draw_into_district(df, curr_precinct, id)
-        print(f"Current district population: {population_sum(df, 'tot', district=id)}")
+        print(f"Current district population: {population_sum(df, district=id)}")
 
     all_neighbors = df.loc[curr_index, 'neighbors']
     #print(all_neighbors)
@@ -400,13 +400,13 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
         else: #if this precinct has neighbors in other districts:
 
             #get population of this precinct's district
-            this_prec_dist_pop = population_sum(df, 'tot', precinct['dist_id'])
+            this_prec_dist_pop = population_sum(df, precinct['dist_id'])
 
             #get current population of each neighboring district with below-target population
-            proper_neighbors = {dist : population_sum(df, 'tot', dist) 
+            proper_neighbors = {dist : population_sum(df, dist) 
                                 for dist in neighboring_dists 
                                 if dist != precinct['dist_id']
-                                and population_sum(df, 'tot', dist) < target_pop}
+                                and population_sum(df, dist) < target_pop}
             if len(proper_neighbors) > 0: #all neighbors are of higher population
                 if this_prec_dist_pop > target_pop:
                     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
@@ -420,7 +420,7 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
         donor_district, precinct, acceptor_district = draw
         #make sure acceptor district isn't too large to be accepting precincts
         #see past commits for more notes re: cyclical behavior
-        if population_sum(df, 'tot', acceptor_district) <= target_pop + (allowed_deviation / 2):
+        if population_sum(df, acceptor_district) <= target_pop + (allowed_deviation / 2):
             draw_into_district(df, precinct, acceptor_district)
 
     #fix any district that is fully surrounded by dist_ids other than its 
@@ -644,7 +644,7 @@ def district_pops(df):
     '''
     pops_dict = {}
     for i in range(1, max(df.dist_id)+1):
-        pops_dict[i] = population_sum(df, 'tot', district=i)
+        pops_dict[i] = population_sum(df, district=i)
     return pops_dict
 
 ### RUNTIME PROCEDURE (to be made its own file) ###
