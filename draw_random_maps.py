@@ -31,22 +31,30 @@ def startup_2018(init_neighbors=False):
     if init_neighbors:
         print("Calculating district neighbors:")
         set_precinct_neighbors(ga_data)
-        print("District neighbors calculated")
+        print("Precinct neighbors calculated")
     ga_data['dist_id'] = None #use .isnull() to select all of these
 
     return ga_data
 
-def startup():
+def startup_2020(init_neighbors=False):
     '''
     Get the GA 2020 data ready to do things with.
     Generalize to other states when API call becomes functional.
 
     Inputs:
         -none (for now, give it a state or state postal code abbrev later)
-    Returns (geopandas GeoDataFrame): 
+    Returns (geopandas GeoDataFrame): df for 2020 Georgia Redistricting Data Hub
     '''
-    #TODO: implement
-    pass
+    print("Importing Georgia 2020 Redistricting Data Hub data...")
+    fp = "merged_shps/GA_VTD_merged.shp"
+    ga_data = gpd.read_file(fp)
+    print("Georgia 2020 Redistricting Data Hub shapefile data imported")
+    if init_neighbors:
+        set_precinct_neighbors(ga_data)
+        print("Precinct neighbors calculated")
+    ga_data['dist_id'] = None
+
+    return ga_data
 
 
 def set_precinct_neighbors(df):
@@ -66,9 +74,9 @@ def set_precinct_neighbors(df):
     df['neighbors'] = None
     
     for index, row in df.iterrows():
-        neighbors = np.array(df[df.geometry.touches(row['geometry'])].loc_prec)
+        neighbors = np.array(df[df.geometry.touches(row['geometry'])].GEOID20)
         #maybe there's a way to update neighbors for all the neighbors this one finds too? to speed up/reduce redundant calcs?
-        overlap = np.array(df[df.geometry.overlaps(row['geometry'])].loc_prec)
+        overlap = np.array(df[df.geometry.overlaps(row['geometry'])].GEOID20)
         if len(overlap) > 0:
             neighbors = np.union1d(neighbors, overlap)
         #If you convert to tuple here, later procedures to find available neighbors can use sets instead of lists
@@ -78,7 +86,8 @@ def set_precinct_neighbors(df):
             print(f"Neighbors for precinct {index} calculated")
     
     print("Saving neighbors list to csv so you don't have to do this again...")
-    df['neighbors'].to_csv('test_dfs/ga_2018_neighbors.csv')
+    df['neighbors'].to_csv('merged_shps/GA_2020_neighbors.csv') #this now imports neighbors as an undifferentiated string!
+    #Is GEOID always the same length?
 
 
 def affix_neighbors_list(df, neighbor_filename):
@@ -95,14 +104,15 @@ def affix_neighbors_list(df, neighbor_filename):
     Returns: None, modifies df in-place
     '''
 
-    #2018 Open Precincts neighbors filename: "test_dfs/ga_2018_neighbors.csv"
+    #2020 Redistricting Data Hub filename: 'merged_shps/GA_2020_neighbors.csv'
     #do some exception/assertion checks: make sure length of neighbor list matches df
     #also, maybe make sure it's not somehow sorted so as to make the list in the wrong order?
     neighbor_csv = pd.read_csv(neighbor_filename)
     neighbor_list = neighbor_csv['neighbors'] #this comes in as a string, has to be list-ified
-    #deserialize #TODO: Make this neater, with re
+    #deserialize #TODO: fix this so neighbor arrays are of proper length and not running GEOID20s together
     df['neighbors'] = neighbor_list
-    df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x.replace("\n", "").replace("' '", "', '")), dtype=object))
+    df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x), dtype=object))
+
 
 
 ###DRAWING-RELATED FUNCTIONS###
