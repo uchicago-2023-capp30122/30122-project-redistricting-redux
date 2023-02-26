@@ -13,30 +13,54 @@ from datetime import datetime
 import matplotlib as plt
 from ast import literal_eval
 from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density, set_blue_red_diff #not sure i did this relative directory right
+from collections import OrderedDict
 
 ### DATA INGESTION FUNCTIONS (to be split off into separate file when data
 #source is switched over to Redistricting Data Hub)
 
-def startup_2018(init_neighbors=False):
+def load_state(init_neighbors=False, affix_neighbors=True):
     '''
-    Get the GA 2018 data ready to do things with.
+    Function that generalizes input to multiple states. To be used when we
+    have multiple states. This will eventually evolve into what runs from
+    the command line.
+
     Inputs:
-        -none
-    Returns (geopandas GeoDataFrame): df for 2018 Georgia OpenPrecincts
+        -none, requests input from user
+    Returns (geopandas GeoDataFrame)
     '''
-    print("Importing Georgia 2018 precinct shapefile data...")
-    fp = "openprecincts_ga_2018/2018Precincts.shp"
-    ga_data = gpd.read_file(fp)
-    print("Georgia 2018 shapefile data imported")
+    supported_states = OrderedDict({'Georgia': "GA"})
+
+    state_input = input("Type a two-letter state postal abbreviation, or type 'list' to see list of supported states: ")
+    while state_input not in supported_states.values():
+        if state_input == 'list':
+            print("Here's a list of states currently supported by the program:")
+            print(supported_states)
+        elif state_input in {'quit', 'exit', 'esc', 'escape', 'halt', 'stop'}:
+            break
+        else:
+            print("That's not the postal code of a state we currently have data for.")
+        state_input = input("Type a two-letter state postal abbreviation, or type 'quit' to exit program: ")
+    #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
+    state_fullname = [k for k, v in supported_states.items() if v == state_input][0]
+    print(f"You typed: {state_input} (for {state_fullname})")
+
+    print(f"Importing {state_fullname} 2020 Redistricting Data Hub data...")
+    fp = f"merged_shps/{state_input}_VTD_merged.shp"
+    state_data = gpd.read_file(fp)
+    print(f"{state_fullname} 2020 Redistricting Data Hub shapefile data imported")
     if init_neighbors:
-        print("Calculating district neighbors:")
         set_precinct_neighbors(ga_data)
         print("Precinct neighbors calculated")
-    ga_data['dist_id'] = None #use .isnull() to select all of these
+    if affix_neighbors: #maybe figure out how to do these as command line flags
+        neighbor_fp = f'merged_shps/{state_input}_2020_neighbors.csv'
+        affix_neighbors_list(state_data, neighbor_fp)
+        print("Neighbors list affixed from file")
+    state_data['dist_id'] = None
 
-    return ga_data
+    return state_data   
+    
 
-def startup_2020(init_neighbors=False):
+def startup_ga_2020(init_neighbors=False):
     '''
     Get the GA 2020 data ready to do things with.
     Generalize to other states when API call becomes functional.
@@ -213,13 +237,6 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
  
         dist_so_far = [] + list(df[df.dist_id == id]['GEOID20'])
 
-        #handle if there are no valid neighbors and it's the first precinct for a new district
-        #This should never trigger now that starting precinct must have empty neighbors.
-        # if dist_so_far is None or len(dist_so_far) == 0:
-        #     print("It looks like you can't start drawing here. Restarting somewhere else...")
-        #     draw_into_district(df, curr_precinct, None) #undo initial draw
-        #     draw_chaos_district(df, target_pop, id)
-
         #handle the error where there are no neighbors of *any* point in district
         #This shouldn't print multiple times for one district, and yet it sometimes prints
         #two or three times
@@ -251,22 +268,14 @@ def all_allowed_neighbors_of_district(df, id):
         -id (int): dist_id of the district you're investigating
 
     Returns (list of strings): IDs of available precincts.
-    TODO: Can this return a set instead of a list?
     '''
-    nabe_set = set()
-    nabes_so_far = list(df[df.dist_id == id]['neighbors']) #use np.union1d and set here
-    for array in nabes_so_far:
-        for nabe in array:
-            nabe_set.add(nabe)
-    #print(nabe_set)
+    #This code is more efficient but is possibly worse somehow?
+    #idea for np.concatenate: https://stackoverflow.com/questions/28125265/concatenate-numpy-arrays-which-are-elements-of-a-list
+    nabe_set = set(np.concatenate(df.loc[df.dist_id == 1, 'neighbors'].values))
 
-    #TODO: helperize this
-    allowed_neighbors = []
-    for nabe in nabe_set:
-        nabe_index = df.index[df['GEOID20'] == nabe].tolist()
-        #print(nabe, nabe_index)
-        if df.loc[nabe_index[0], 'dist_id'] is None:
-            allowed_neighbors.append(nabe)
+    #seems to be slower as a set comprehension than as a list comprehension
+    allowed_neighbors = [nabe for nabe in nabe_set
+                         if df.loc[df.GEOID20 == nabe, 'dist_id'].item() is None]
 
     return allowed_neighbors
 
@@ -420,8 +429,8 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
         donor_district, precinct, acceptor_district = draw
         #make sure acceptor district isn't too large to be accepting precincts
         #see past commits for more notes re: cyclical behavior
-        if population_sum(df, district=acceptor_district) <= target_pop + (allowed_deviation / 2):
-            draw_into_district(df, precinct, acceptor_district)
+        #if population_sum(df, district=acceptor_district) <= target_pop + (allowed_deviation / 2):
+        draw_into_district(df, precinct, acceptor_district)
 
     #fix any district that is fully surrounded by dist_ids other than its 
     #own (redraw it to match majority dist_id surrounding it)
