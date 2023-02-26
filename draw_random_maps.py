@@ -108,7 +108,7 @@ def affix_neighbors_list(df, neighbor_filename):
     neighbor_list = neighbor_csv['neighbors'] #this comes in as a string, has to be list-ified
     #deserialize #TODO: fix this so neighbor arrays are of proper length and not running GEOID20s together
     df['neighbors'] = neighbor_list
-    df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x), dtype=object))
+    df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x.replace("\n", "").replace("' '", "', '")), dtype=object))
 
 
 
@@ -349,7 +349,7 @@ def fill_district_holes(df, map_each_step=False):
         go_rounds += 1
         print(f"Starting cleanup go-round number {go_rounds}.")
         holes = df.loc[df['dist_id'].isnull()]
-        print(holes.shape)
+        print(f"({holes.shape[0]} unassigned precincts remaining)")
         for index, hole in holes.iterrows():
             real_dists_ard_hole = find_neighboring_districts(df, hole['neighbors'], include_None=False)
             if len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
@@ -629,9 +629,12 @@ def results_by_district(df):
 
     Returns (geopandas GeoDataFrame): state level data by custom district
     '''
-    df = df.drop(['neighbors'])
+    df = df.drop(['neighbors'], axis=1)
     df_dists = df.dissolve(by='dist_id', aggfunc=sum)
     df_dists.reset_index(drop=True)
+    set_blue_red_diff(df_dists)
+    #will cause a ZeroDivisionError if any districts are exactly tied
+    df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
 
     return df_dists
 
