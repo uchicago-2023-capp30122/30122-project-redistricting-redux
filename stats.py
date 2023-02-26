@@ -7,7 +7,7 @@ functions by: Matt Jackson
 #Separating basic stats that aren't *inherently* mapping functions into
 #their own file for better code organization
 
-def population_sum(df, colname, district=None):
+def population_sum(df, colname="Tot_2020_t", district=None):
     '''
     Calculates the total population across a state df, or district therein, of 
     all people designated a given way in a column. 'district' flag allows for
@@ -26,7 +26,7 @@ def population_sum(df, colname, district=None):
     return int(df[colname].sum())
 
 
-def blue_red_margin(df, dcol, rcol, district=None):
+def blue_red_margin(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None):
     '''
     Returns the difference in votes, normalized to percentage points, between
     the Democratic candidate and the Republican candidate in the given area.
@@ -67,7 +67,7 @@ def target_dist_pop(df, n=14):
     Returns (int): Target population value 
     '''
     #gonna have to change what "tot" is named based on data source
-    return population_sum(df, "tot") // n
+    return population_sum(df) // n
 
 def metric_area(df, district=None):
     '''
@@ -85,7 +85,7 @@ def metric_area(df, district=None):
 
     return df['area'].sum() * METERS_TO_KM
     #this doesn't seem to output the actual value for Georgia, which is 153910 sq km
-    #this outputs 217813
+    #this outputs 217785.269...
     #it may not matter that much if we're just using density comparatively
     #we can also use a fudge factor if we need it to be accurate
 

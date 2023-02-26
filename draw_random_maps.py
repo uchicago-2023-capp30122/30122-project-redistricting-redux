@@ -93,9 +93,6 @@ def set_precinct_neighbors(df):
 def affix_neighbors_list(df, neighbor_filename):
     '''
     Affix an adjacency list of neighbors to the appropriate csv.
-    DO NOT CALL THIS until functions have been rewritten to use GEOID20 instead
-    of loc_prec. It seems like the apostrophes and commas in some loc_prec 
-    names are breaking the literal_eval attempt, and GEOID20s have neither of those.
 
     Input:
         -df(geopandas GeoDataFrame): precinct/VTD-level data for a state
@@ -142,7 +139,7 @@ def draw_into_district(df, precinct, id):
 
     Returns: Nothing, modifies df in-place
     '''
-    df.loc[df['loc_prec'] == precinct, 'dist_id'] = id
+    df.loc[df['GEOID20'] == precinct, 'dist_id'] = id
 
 
 def draw_chaos_district(df, target_pop, id, curr_precinct=None):
@@ -181,7 +178,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         #have neighbors that are all also empty.
         while len(neighboring_dists) != 0:
             curr_index = random.randint(0, len(df)-1)
-            curr_precinct = df.loc[curr_index, 'loc_prec']
+            curr_precinct = df.loc[curr_index, 'GEOID20']
             neighboring_dists = find_neighboring_districts(df, df.loc[curr_index, 'neighbors'],
                                                        include_None=False)
             #time.sleep(0.5)
@@ -189,10 +186,10 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
         #time.sleep(1)
 
     else: 
-        curr_index = df.index[df['loc_prec'] == curr_precinct].tolist()[0]
+        curr_index = df.index[df['GEOID20'] == curr_precinct].tolist()[0]
         print(f"We continue with: {curr_precinct}")
 
-    #if df.loc[df.loc_prec==curr_precinct,'dist_id'].item() is None:
+    #if df.loc[df.GEOID20==curr_precinct,'dist_id'].item() is None:
     if df.loc[curr_index, 'dist_id'] is None:
         #print(f"Now drawing {curr_precinct} into district")
         draw_into_district(df, curr_precinct, id)
@@ -205,7 +202,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
     #TODO: consider helperizing and/or redoing as an elegant list comprehension
     allowed_neighbors = []
     for nabe in all_neighbors:
-        nabe_index = df.index[df['loc_prec'] == nabe].tolist()
+        nabe_index = df.index[df['GEOID20'] == nabe].tolist()
         #print(nabe, nabe_index)
         if df.loc[nabe_index[0], 'dist_id'] is None:
             allowed_neighbors.append(nabe)
@@ -214,7 +211,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
     if len(allowed_neighbors) == 0:
         print("No valid neighbors to draw into! Handling error case...")
  
-        dist_so_far = [] + list(df[df.dist_id == id]['loc_prec'])
+        dist_so_far = [] + list(df[df.dist_id == id]['GEOID20'])
 
         #handle if there are no valid neighbors and it's the first precinct for a new district
         #This should never trigger now that starting precinct must have empty neighbors.
@@ -266,7 +263,7 @@ def all_allowed_neighbors_of_district(df, id):
     #TODO: helperize this
     allowed_neighbors = []
     for nabe in nabe_set:
-        nabe_index = df.index[df['loc_prec'] == nabe].tolist()
+        nabe_index = df.index[df['GEOID20'] == nabe].tolist()
         #print(nabe, nabe_index)
         if df.loc[nabe_index[0], 'dist_id'] is None:
             allowed_neighbors.append(nabe)
@@ -358,12 +355,12 @@ def fill_district_holes(df, map_each_step=False):
             if len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
                 neighbor_dist_id = int(list(real_dists_ard_hole)[0]) 
                 #THIS WILL BREAK IF YOU GIVE YOUR DISTRICTS ANY ID OTHER THAN INTEGERS
-                draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
+                draw_into_district(df, hole['GEOID20'], neighbor_dist_id)
             elif len(real_dists_ard_hole) >= 2: #i.e. if this could go into one of two other districts
                 #TODO: Make this find the neighboring district with least population 
                 #and always draw into that, to make upcoming pop-swap less onerous
                 neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
-                draw_into_district(df, hole['loc_prec'], neighbor_dist_id)
+                draw_into_district(df, hole['GEOID20'], neighbor_dist_id)
         
         if map_each_step:
             print(f"Exporting map for go-round number {go_rounds}...")
@@ -415,7 +412,7 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
                     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
                     smallest_neighbor = [k for k,v in proper_neighbors.items() if v == min(proper_neighbors.values())][0] #JANK
                     #prepare to reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
-                    draw_to_do = (precinct['dist_id'], precinct['loc_prec'], smallest_neighbor)
+                    draw_to_do = (precinct['dist_id'], precinct['GEOID20'], smallest_neighbor)
                     draws_to_do.append(draw_to_do)
 
     print("Doing all valid drawings one at a time...")
@@ -498,7 +495,7 @@ def find_neighboring_districts(df, lst, include_None=True):
     dists_theyre_in = set()
     for precinct_name in lst:
         #extract the number of the district of each neighbor.
-        dist_its_in = df.loc[df['loc_prec'] == precinct_name, 'dist_id'].iloc[0]
+        dist_its_in = df.loc[df['GEOID20'] == precinct_name, 'dist_id'].iloc[0]
         dists_theyre_in.add(dist_its_in)
     
     if include_None:
@@ -525,8 +522,8 @@ def recapture_orphan_precincts(df):
     for idx, row in df.iterrows():
         neighboring_districts = find_neighboring_districts(df, row['neighbors']) #include_None should be unnecessary
         if row['dist_id'] not in neighboring_districts: 
-            print(f"Reclaiming orphan precinct {row['loc_prec']}...")
-            draw_into_district(df, row['loc_prec'], random.choice(tuple(neighboring_districts)))
+            print(f"Reclaiming orphan precinct {row['GEOID20']}...")
+            draw_into_district(df, row['GEOID20'], random.choice(tuple(neighboring_districts)))
 
 
 ### PLOTTING FUNCTIONS ###
