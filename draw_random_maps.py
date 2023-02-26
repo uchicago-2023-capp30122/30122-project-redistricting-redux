@@ -617,7 +617,7 @@ def plot_redblue_precincts(df, dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=1
 
 ### STATS FUNCTIONS (to be moved over to stats or elsewhere, perhaps) ###
 
-def results_by_district(df):
+def results_by_district(df, export_to=None):
     '''
     Compresses the df down to a table of by-district stats, where each row
     represents the entire area with one dist_id. Dissolve process is slow,
@@ -626,6 +626,7 @@ def results_by_district(df):
     Inputs:
         -df (geopandas GeoDataFrame): state level precinct/VTD data. Should
         have dist_id assigned for every precinct.
+        -export_to (str): name of file to export to
 
     Returns (geopandas GeoDataFrame): state level data by custom district
     '''
@@ -635,6 +636,11 @@ def results_by_district(df):
     set_blue_red_diff(df_dists)
     #will cause a ZeroDivisionError if any districts are exactly tied
     df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
+    df_dists['area'] = df_dists['geometry'].to_crs('EPSG:3857').area
+    df_dists['popdensity'] = df_dists['Tot_2020_t'] / df_dists['area']
+
+    if export_to:
+        pass #TODO: figure out what minimum export is
 
     return df_dists
 
