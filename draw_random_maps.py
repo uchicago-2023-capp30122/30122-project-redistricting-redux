@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 import matplotlib as plt
 from ast import literal_eval
-from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density #not sure i did this relative directory right
+from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density, set_blue_red_diff #not sure i did this relative directory right
 
 ### DATA INGESTION FUNCTIONS (to be split off into separate file when data
 #source is switched over to Redistricting Data Hub)
@@ -364,7 +364,7 @@ def fill_district_holes(df, map_each_step=False):
         
         if map_each_step:
             print(f"Exporting map for go-round number {go_rounds}...")
-            plot_redblue_precincts(df, "G18DGOV", "G18RGOV")
+            plot_redblue_precincts(df)
 
     print("Cleanup complete. All holes in districts filled. Districts expanded to fill empty space.")
 
@@ -400,13 +400,13 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
         else: #if this precinct has neighbors in other districts:
 
             #get population of this precinct's district
-            this_prec_dist_pop = population_sum(df, precinct['dist_id'])
+            this_prec_dist_pop = population_sum(df, district=precinct['dist_id'])
 
             #get current population of each neighboring district with below-target population
-            proper_neighbors = {dist : population_sum(df, dist) 
+            proper_neighbors = {dist : population_sum(df, district=dist) 
                                 for dist in neighboring_dists 
                                 if dist != precinct['dist_id']
-                                and population_sum(df, dist) < target_pop}
+                                and population_sum(df, district=dist) < target_pop}
             if len(proper_neighbors) > 0: #all neighbors are of higher population
                 if this_prec_dist_pop > target_pop:
                     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
@@ -420,11 +420,12 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
         donor_district, precinct, acceptor_district = draw
         #make sure acceptor district isn't too large to be accepting precincts
         #see past commits for more notes re: cyclical behavior
-        if population_sum(df, acceptor_district) <= target_pop + (allowed_deviation / 2):
+        if population_sum(df, district=acceptor_district) <= target_pop + (allowed_deviation / 2):
             draw_into_district(df, precinct, acceptor_district)
 
     #fix any district that is fully surrounded by dist_ids other than its 
     #own (redraw it to match majority dist_id surrounding it)
+    print("Reassigning districts 'orphaned' by swapping process...")
     recapture_orphan_precincts(df)
 
     print(district_pops(df))
@@ -464,9 +465,10 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_af
         print(population_deviation)
         pop_devs_so_far.append(population_deviation)
         time.sleep(1)
+        print("Finding valid precincts to swap... This could take a few seconds...")
         mapwide_pop_swap(df, allowed_deviation)
         if plot_each_step:
-            plot_redblue_precincts(df, "G18DGOV", "G18RGOV")
+            plot_redblue_precincts(df)
         count += 1
         if count > stop_after:
             print(f"You've now swapped {count} times. Stopping")
@@ -528,8 +530,7 @@ def recapture_orphan_precincts(df):
 
 ### PLOTTING FUNCTIONS ###
 
-
-def plot_dissolved_map(df, dcol, rcol, export_to=None):
+def plot_dissolved_map(df, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None):
     '''
     Plot a map that dissolves precinct boundaries to show districts as solid
     colors based on their vote margin. Displays it on screen if user's 
@@ -549,8 +550,11 @@ def plot_dissolved_map(df, dcol, rcol, export_to=None):
     Returns: None, displays plot on-screen and saves image to file
     '''
     print("Dissolving precincts to full districts...")
-    df_dists = df.dissolve(by='dist_id')
+    df_dists = df.dissolve(by='dist_id', aggfunc=sum)
     df_dists.reset_index(drop=True)
+    set_blue_red_diff(df_dists)
+    #will cause a ZeroDivisionError if any districts are exactly tied
+    df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
 
     df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
     df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
@@ -574,7 +578,7 @@ def plot_dissolved_map(df, dcol, rcol, export_to=None):
     plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
 
-def plot_redblue_precincts(df, dcol, rcol, num_dists=14):
+def plot_redblue_precincts(df, dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=14):
     '''
     Plot a map that color-codes each precinct by the partisan margin of the vote
     in the district it's part of, i.e. dark blue if it largely voted Democratic,
@@ -606,7 +610,7 @@ def plot_redblue_precincts(df, dcol, rcol, num_dists=14):
     #cbar = fig.colorbar(sm) #all of these extremely basic things from many matplotlib StackOverflow answers fail
 
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = 'maps/ga_testmap_' + timestamp
+    filepath = 'maps/ga20_testmap_' + timestamp
     plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
 
@@ -656,4 +660,4 @@ if __name__ == '__main__':
     print("Attempting to equalize district populations:")
     repeated_pop_swap(ga_data, allowed_deviation=70000, stop_after=20)
     print("Plotting cleaned districts on state map for contrast:")
-    plot_dissolved_map(ga_data, "G18DGOV", "G18RGOV")
+    plot_dissolved_map(ga_data)

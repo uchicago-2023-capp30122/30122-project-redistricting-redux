@@ -25,6 +25,23 @@ def population_sum(df, colname="Tot_2020_t", district=None):
 
     return int(df[colname].sum())
 
+def set_blue_red_diff(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None):
+    '''
+    Gives the df a new attribute for raw difference in votes between the 
+    Democratic and Republican candidate
+
+    Inputs: 
+        -df (Geopandas GeoDataFrame): state data by precinct/VTD
+        -dcol (str): name of the column in the data representing the Democratic
+        candidate's votes earned.
+        -rcol (str): name of the column in the data representing the Republican
+        candidate's votes earned.
+        -district (any): district ID. If None, calculates margin for the whole
+        state.
+    Returns: None, modifies df in place
+    '''
+    df['raw_dr_dif'] = df[dcol] - df[rcol]
+
 
 def blue_red_margin(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None):
     '''
@@ -33,7 +50,7 @@ def blue_red_margin(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None):
     Should only be called using candidates who actually ran against each other
     in the same race during the same election cycle.
     Inputs: 
-        -df (Geopandas GeoDataFrame)
+        -df (Geopandas GeoDataFrame): state data by precinct/VTD
         -dcol (str): name of the column in the data representing the Democratic
         candidate's votes earned.
         -rcol (str): name of the column in the data representing the Republican
