@@ -9,14 +9,15 @@ def merge_data(shp_filename, election_zip_filename, election_csv_filename, \
     new shapefile with the merged data to the working directory.
     
     Inputs:
-        shp_filename (string): the name of the zipped file that contains the
-            contents of the VTD boundaries shapefile
-        election_zip_filename (string): the name of the zipped file that 
-            contains a csv of election results by VTD
+        shp_filename (string): the name of the zipped file from RDH 
+            that contains the contents of the VTD boundaries shapefile
+        election_zip_filename (string): the name of the zipped file from RDH
+            that contains a csv of election results by VTD
         election_csv_filename (string): the name of the csv file within the
-            zipfile
+            above zipfile - do not need to pull this file separately from RDH
         pop_filename (string): the name of the csv file that contains
-            population and demographic values by VTD
+            population and demographic values by VTD - pulled from VTD data by
+            Dave Bradlee
     """
     gdf = gpd.read_file(shp_filename)
 
