@@ -636,7 +636,7 @@ def plot_redblue_precincts(df, dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=1
 
 ### STATS FUNCTIONS (to be moved over to stats or elsewhere, perhaps) ###
 
-def results_by_district(df, export_to=None):
+def results_by_district(df, export_to=False):
     '''
     Compresses the df down to a table of by-district stats, where each row
     represents the entire area with one dist_id. Dissolve process is slow,
@@ -662,8 +662,8 @@ def results_by_district(df, export_to=None):
     if export_to:
         print("Exporting by-district vote results to file...")
         timestamp = datetime.now().strftime("%m%d-%H%M%S")
-        filepath = 'merged_shps/ga20_test_dists_' + timestamp
-        df_dists.to_csv(filepath)
+        filepath = f'merged_shps/ga20_test_dists_{timestamp}.shp"
+        df_dists.to_file(filepath)
         print("Export complete.")
         
     return df_dists
