@@ -58,6 +58,17 @@ def load_state(init_neighbors=False, affix_neighbors=True):
     state_data['dist_id'] = None
 
     return state_data   
+
+    #TODO: have it ask you for a number
+    #look up if it already has a map on file for that number
+    #draw random map based on that seed
+    #do pop swap stuff
+    #export whatever is needed for metrics
+
+    #plot map to screen if possible or tell user where they can go find it
+
+    #run metrics
+    #output result of running metrics
     
 
 def startup_ga_2020(init_neighbors=False):
@@ -377,7 +388,6 @@ def fill_district_holes(df, map_each_step=False):
 
     print("Cleanup complete. All holes in districts filled. Districts expanded to fill empty space.")
 
-
 def mapwide_pop_swap(df, allowed_deviation=70000):
     '''
     Iterates through the precincts in a state with a drawn district map and 
@@ -646,11 +656,16 @@ def results_by_district(df, export_to=None):
     #will cause a ZeroDivisionError if any districts are exactly tied
     df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
     df_dists['area'] = df_dists['geometry'].to_crs('EPSG:3857').area
+    #TODO: add df_dists['perimeter']?
     df_dists['popdensity'] = df_dists['Tot_2020_t'] / df_dists['area']
 
     if export_to:
-        pass #TODO: figure out what minimum export is
-
+        print("Exporting by-district vote results to file...")
+        timestamp = datetime.now().strftime("%m%d-%H%M%S")
+        filepath = 'merged_shps/ga20_test_dists_' + timestamp
+        df_dists.to_csv(filepath)
+        print("Export complete.")
+        
     return df_dists
 
 
