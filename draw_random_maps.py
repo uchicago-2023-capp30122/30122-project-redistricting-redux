@@ -686,11 +686,11 @@ def district_pops(df):
 
 ### RUNTIME PROCEDURE (to be made its own file) ###
 
-if __name__ == '__main__':
-    ga_data = startup_2018()
-    print("Drawing random map:")
-    draw_chaos_state_map(ga_data, 14)
-    print("Attempting to equalize district populations:")
-    repeated_pop_swap(ga_data, allowed_deviation=70000, stop_after=20)
-    print("Plotting cleaned districts on state map for contrast:")
-    plot_dissolved_map(ga_data)
+# if __name__ == '__main__':
+#     ga_data = startup_2018()
+#     print("Drawing random map:")
+#     draw_chaos_state_map(ga_data, 14)
+#     print("Attempting to equalize district populations:")
+#     repeated_pop_swap(ga_data, allowed_deviation=70000, stop_after=20)
+#     print("Plotting cleaned districts on state map for contrast:")
+#     plot_dissolved_map(ga_data)
