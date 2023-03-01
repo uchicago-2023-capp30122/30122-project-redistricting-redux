@@ -293,7 +293,7 @@ def all_allowed_neighbors_of_district(df, id):
     '''
     #This code is more efficient but is possibly worse somehow?
     #idea for np.concatenate: https://stackoverflow.com/questions/28125265/concatenate-numpy-arrays-which-are-elements-of-a-list
-    nabe_set = set(np.concatenate(df.loc[df.dist_id == 1, 'neighbors'].values))
+    nabe_set = set(np.concatenate(df.loc[df.dist_id == id, 'neighbors'].values))
 
     #seems to be slower as a set comprehension than as a list comprehension
     allowed_neighbors = [nabe for nabe in nabe_set
