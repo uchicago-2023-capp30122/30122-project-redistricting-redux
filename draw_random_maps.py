@@ -610,6 +610,7 @@ def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", e
     filepath = f'maps/{state_postal}_testmap_' + timestamp
     plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
+    plt.pyplot.close()
 
 def plot_redblue_precincts(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=14):
     '''
@@ -647,6 +648,7 @@ def plot_redblue_precincts(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU
     filepath = f'maps/{state_postal}20_testmap_' + timestamp
     plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
+    plt.pyplot.close()
 
 
 ### STATS FUNCTIONS (to be moved over to stats or elsewhere, perhaps) ###
