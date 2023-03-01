@@ -78,27 +78,6 @@ def import_state(state_input, init_neighbors=False, affix_neighbors=True):
     state_data['dist_id'] = None
 
     return state_data   
-    
-
-# def startup_ga_2020(init_neighbors=False):
-#     '''
-#     Get the GA 2020 data ready to do things with.
-#     Generalize to other states when API call becomes functional.
-
-#     Inputs:
-#         -none (for now, give it a state or state postal code abbrev later)
-#     Returns (geopandas GeoDataFrame): df for 2020 Georgia Redistricting Data Hub
-#     '''
-#     print("Importing Georgia 2020 Redistricting Data Hub data...")
-#     fp = "merged_shps/GA_VTD_merged.shp"
-#     ga_data = gpd.read_file(fp)
-#     print("Georgia 2020 Redistricting Data Hub shapefile data imported")
-#     if init_neighbors:
-#         set_precinct_neighbors(ga_data)
-#         print("Precinct neighbors calculated")
-#     ga_data['dist_id'] = None
-
-#     return ga_data
 
 
 def set_precinct_neighbors(df, state_postal):
@@ -639,7 +618,7 @@ def plot_redblue_precincts(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU
         df.loc[df.dist_id == i, 'raw_margin'] = blue_red_margin(df, dcol, rcol, i)
 
     #TODO: figure out how to push legend off map, or maybe turn it into categorical color bar
-    df.plot(column='raw_margin', cmap='seismic_r')
+    df.plot(column='raw_margin', cmap='seismic_r', vmin=-.6, vmax=.6)
     #fig, ax = plt.subplots(1)
     #sm = plt.cm.ScalarMappable(cmap='seismic_r')
     #cbar = fig.colorbar(sm) #all of these extremely basic things from many matplotlib StackOverflow answers fail
