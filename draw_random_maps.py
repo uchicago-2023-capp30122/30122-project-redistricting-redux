@@ -18,7 +18,12 @@ from collections import OrderedDict
 ### DATA INGESTION FUNCTIONS (to be split off into separate file when data
 #source is switched over to Redistricting Data Hub)
 
-def load_state(init_neighbors=False, affix_neighbors=True):
+SUPPORTED_STATES = OrderedDict({'Arizona': "AZ",
+                                'Georgia': "GA",
+                                'Nevada': "NV",
+                                'North Carolina': "NC"})
+
+def select_state(init_neighbors=False, affix_neighbors=True):
     '''
     Function that generalizes input to multiple states. To be used when we
     have multiple states. This will eventually evolve into what runs from
@@ -26,30 +31,45 @@ def load_state(init_neighbors=False, affix_neighbors=True):
 
     Inputs:
         -none, requests input from user
-    Returns (geopandas GeoDataFrame)
+    Returns (geopandas GeoDataFrame), indirectly, by calling helper
     '''
-    supported_states = OrderedDict({'Georgia': "GA"})
 
     state_input = input("Type a two-letter state postal abbreviation, or type 'list' to see list of supported states: ")
-    while state_input not in supported_states.values():
+    while state_input not in SUPPORTED_STATES.values():
         if state_input == 'list':
             print("Here's a list of states currently supported by the program:")
-            print(supported_states)
+            print(SUPPORTED_STATES)
         elif state_input in {'quit', 'exit', 'esc', 'escape', 'halt', 'stop'}:
             break
         else:
             print("That's not the postal code of a state we currently have data for.")
         state_input = input("Type a two-letter state postal abbreviation, or type 'quit' to exit program: ")
     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
-    state_fullname = [k for k, v in supported_states.items() if v == state_input][0]
+    state_fullname = [k for k, v in SUPPORTED_STATES.items() if v == state_input][0]
     print(f"You typed: {state_input} (for {state_fullname})")
+    
+    return import_state(state_postal, init_neighbors, affix_neighbors)
+
+
+def import_state(state_input, init_neighbors=False, affix_neighbors=True):
+    '''
+    Helper function that actually imports the state after selecting it.
+
+    Inputs:
+        -state_input (str): 2-letter state postal code abbreviation
+    Returns (geopandas GeoDataFrame)
+    '''
+    state_fullname = [k for k, v in SUPPORTED_STATES.items() if v == state_input][0] #DRY
 
     print(f"Importing {state_fullname} 2020 Redistricting Data Hub data...")
     fp = f"merged_shps/{state_input}_VTD_merged.shp"
     state_data = gpd.read_file(fp)
-    print(f"{state_fullname} 2020 Redistricting Data Hub shapefile data imported")
+    if "Tot_2020_t" in state_data.columns:
+        state_data.rename(columns={"Tot_2020_t","POP100"})
+        print("Renamed population column to POP100")
+    print(f"{state_input} 2020 Redistricting Data Hub shapefile data imported")
     if init_neighbors:
-        set_precinct_neighbors(ga_data)
+        set_precinct_neighbors(state_data, state_input)
         print("Precinct neighbors calculated")
     if affix_neighbors: #maybe figure out how to do these as command line flags
         neighbor_fp = f'merged_shps/{state_input}_2020_neighbors.csv'
@@ -58,41 +78,30 @@ def load_state(init_neighbors=False, affix_neighbors=True):
     state_data['dist_id'] = None
 
     return state_data   
-
-    #TODO: have it ask you for a number
-    #look up if it already has a map on file for that number
-    #draw random map based on that seed
-    #do pop swap stuff
-    #export whatever is needed for metrics
-
-    #plot map to screen if possible or tell user where they can go find it
-
-    #run metrics
-    #output result of running metrics
     
 
-def startup_ga_2020(init_neighbors=False):
-    '''
-    Get the GA 2020 data ready to do things with.
-    Generalize to other states when API call becomes functional.
+# def startup_ga_2020(init_neighbors=False):
+#     '''
+#     Get the GA 2020 data ready to do things with.
+#     Generalize to other states when API call becomes functional.
 
-    Inputs:
-        -none (for now, give it a state or state postal code abbrev later)
-    Returns (geopandas GeoDataFrame): df for 2020 Georgia Redistricting Data Hub
-    '''
-    print("Importing Georgia 2020 Redistricting Data Hub data...")
-    fp = "merged_shps/GA_VTD_merged.shp"
-    ga_data = gpd.read_file(fp)
-    print("Georgia 2020 Redistricting Data Hub shapefile data imported")
-    if init_neighbors:
-        set_precinct_neighbors(ga_data)
-        print("Precinct neighbors calculated")
-    ga_data['dist_id'] = None
+#     Inputs:
+#         -none (for now, give it a state or state postal code abbrev later)
+#     Returns (geopandas GeoDataFrame): df for 2020 Georgia Redistricting Data Hub
+#     '''
+#     print("Importing Georgia 2020 Redistricting Data Hub data...")
+#     fp = "merged_shps/GA_VTD_merged.shp"
+#     ga_data = gpd.read_file(fp)
+#     print("Georgia 2020 Redistricting Data Hub shapefile data imported")
+#     if init_neighbors:
+#         set_precinct_neighbors(ga_data)
+#         print("Precinct neighbors calculated")
+#     ga_data['dist_id'] = None
 
-    return ga_data
+#     return ga_data
 
 
-def set_precinct_neighbors(df):
+def set_precinct_neighbors(df, state_postal):
     '''
     Creates a list of neighbors (adjacency list) for each precinct/VTD whose 
     geometry is in the GeoDataFrame.
@@ -100,7 +109,9 @@ def set_precinct_neighbors(df):
     seconds per precinct.
 
     Inputs:
-        -df (GeoPandas GeoDataFrame)
+        -df (GeoPandas GeoDataFrame): state data by precinct/VTD
+        -state_postal (2-character string): postal code for a state supported
+        by the program, e.g. "GA" for Georgia
 
     Returns: None, modifies df in-place
     '''
@@ -121,7 +132,7 @@ def set_precinct_neighbors(df):
             print(f"Neighbors for precinct {index} calculated")
     
     print("Saving neighbors list to csv so you don't have to do this again...")
-    df['neighbors'].to_csv('merged_shps/GA_2020_neighbors.csv') #this now imports neighbors as an undifferentiated string!
+    df['neighbors'].to_csv(f'merged_shps/{state_postal}_2020_neighbors.csv') #this now imports neighbors as an undifferentiated string!
     #Is GEOID always the same length?
 
 
@@ -657,12 +668,12 @@ def results_by_district(df, export_to=False):
     df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
     df_dists['area'] = df_dists['geometry'].to_crs('EPSG:3857').area
     #TODO: add df_dists['perimeter']?
-    df_dists['popdensity'] = df_dists['Tot_2020_t'] / df_dists['area']
+    df_dists['popdensity'] = df_dists['POP100'] / df_dists['area']
 
     if export_to:
         print("Exporting by-district vote results to file...")
         timestamp = datetime.now().strftime("%m%d-%H%M%S")
-        filepath = f'merged_shps/ga20_test_dists_{timestamp}.shp"
+        filepath = f"merged_shps/ga20_test_dists_{timestamp}.shp"
         df_dists.to_file(filepath)
         print("Export complete.")
         

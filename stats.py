@@ -7,7 +7,7 @@ functions by: Matt Jackson
 #Separating basic stats that aren't *inherently* mapping functions into
 #their own file for better code organization
 
-def population_sum(df, colname="Tot_2020_t", district=None):
+def population_sum(df, colname="POP100", district=None):
     '''
     Calculates the total population across a state df, or district therein, of 
     all people designated a given way in a column. 'district' flag allows for
