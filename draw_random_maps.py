@@ -125,16 +125,13 @@ def affix_neighbors_list(df, neighbor_filename):
 
     Returns: None, modifies df in-place
     '''
-
-    #2020 Redistricting Data Hub filename: 'merged_shps/GA_2020_neighbors.csv'
     #do some exception/assertion checks: make sure length of neighbor list matches df
     #also, maybe make sure it's not somehow sorted so as to make the list in the wrong order?
     neighbor_csv = pd.read_csv(neighbor_filename)
     neighbor_list = neighbor_csv['neighbors'] #this comes in as a string, has to be list-ified
-    #deserialize #TODO: fix this so neighbor arrays are of proper length and not running GEOID20s together
+    #deserialize 
     df['neighbors'] = neighbor_list
     df['neighbors'] = df['neighbors'].apply(lambda x: np.array(literal_eval(x.replace("\n", "").replace("' '", "', '")), dtype=object))
-
 
 
 ###DRAWING-RELATED FUNCTIONS###
@@ -212,7 +209,7 @@ def draw_chaos_district(df, target_pop, id, curr_precinct=None):
 
     else: 
         curr_index = df.index[df['GEOID20'] == curr_precinct].tolist()[0]
-        print(f"We continue with: {curr_precinct}")
+        #print(f"We continue with: {curr_precinct}")
 
     #if df.loc[df.GEOID20==curr_precinct,'dist_id'].item() is None:
     if df.loc[curr_index, 'dist_id'] is None:
@@ -270,7 +267,6 @@ def all_allowed_neighbors_of_district(df, id):
 
     Returns (list of strings): IDs of available precincts.
     '''
-    #This code is more efficient but is possibly worse somehow?
     #idea for np.concatenate: https://stackoverflow.com/questions/28125265/concatenate-numpy-arrays-which-are-elements-of-a-list
     nabe_set = set(np.concatenate(df.loc[df.dist_id == id, 'neighbors'].values))
 
@@ -581,7 +577,6 @@ def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", e
         plt.pyplot.annotate(text=row['point_swing'], 
                             xy=(row['center'].x, row['center'].y), 
                             horizontalalignment='center', fontsize=4)
-    #Why is this map so much redder than the by-precinct one?
 
     #TODO: Add a legend of dist_ids that doesn't overlap with map
 
@@ -679,14 +674,3 @@ def district_pops(df):
     for i in range(1, max(df.dist_id)+1):
         pops_dict[i] = population_sum(df, district=i)
     return pops_dict
-
-### RUNTIME PROCEDURE (to be made its own file) ###
-
-# if __name__ == '__main__':
-#     ga_data = startup_2018()
-#     print("Drawing random map:")
-#     draw_chaos_state_map(ga_data, 14)
-#     print("Attempting to equalize district populations:")
-#     repeated_pop_swap(ga_data, allowed_deviation=70000, stop_after=20)
-#     print("Plotting cleaned districts on state map for contrast:")
-#     plot_dissolved_map(ga_data)
