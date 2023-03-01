@@ -323,10 +323,12 @@ def draw_chaos_state_map(df, num_districts, seed=2023, clear_first=True, export_
     if clear_first:
         print("Clearing off previous district drawings, if any...")
         clear_dist_ids(df)
-        time.sleep(1)
+        time.sleep(0.1)
 
     random.seed(seed) 
     target_pop = target_dist_pop(df, num_districts)
+    print(f"Drawing {num_districts} districts. Target population per district is {target_pop}")
+    time.sleep(1)
     for id in range(1, num_districts + 1):
         print(f"Now drawing district {id}...")
         draw_chaos_district(df, target_pop, id)
@@ -560,7 +562,7 @@ def recapture_orphan_precincts(df):
 
 ### PLOTTING FUNCTIONS ###
 
-def plot_dissolved_map(df, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None):
+def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None):
     '''
     Plot a map that dissolves precinct boundaries to show districts as solid
     colors based on their vote margin. Displays it on screen if user's 
@@ -569,6 +571,7 @@ def plot_dissolved_map(df, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None)
     Inputs:
         -df (geopandas GeoDataFrame): state precinct/VTD-level data, with 
         polygons
+        -state_postal (str of length 2)
         -dcol (str): Name of column that contains Democratic voteshare data
         (i.e. estimated number of votes cast for Joe Biden in the precinct in
         the November 2020 presidential election)
@@ -604,11 +607,11 @@ def plot_dissolved_map(df, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None)
     #TODO: Add a legend of dist_ids that doesn't overlap with map
 
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = 'maps/ga_testmap_' + timestamp
+    filepath = f'maps/{state_postal}_testmap_' + timestamp
     plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
 
-def plot_redblue_precincts(df, dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=14):
+def plot_redblue_precincts(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=14):
     '''
     Plot a map that color-codes each precinct by the partisan margin of the vote
     in the district it's part of, i.e. dark blue if it largely voted Democratic,
@@ -616,6 +619,7 @@ def plot_redblue_precincts(df, dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=1
 
     Inputs:
         -df (geopandas DataFrame): state data by precincts/VTDs, with polygons
+        -state_postal (str length 2)
         -dcol (str): Name of column that contains Democratic voteshare data
         (i.e. estimated number of votes cast for Joe Biden in the precinct in
         the November 2020 presidential election)
@@ -640,7 +644,7 @@ def plot_redblue_precincts(df, dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=1
     #cbar = fig.colorbar(sm) #all of these extremely basic things from many matplotlib StackOverflow answers fail
 
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = 'maps/ga20_testmap_' + timestamp
+    filepath = f'maps/{state_postal}20_testmap_' + timestamp
     plt.pyplot.savefig(filepath, dpi=300) 
     print(f"District map saved to {filepath}")
 
