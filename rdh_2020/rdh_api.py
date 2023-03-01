@@ -1,4 +1,4 @@
-# This code comes from the instructions regarding how to use the RDH API key.
+# This code comes from instructions provided by the Redistricting Data Hub
 # Slight modifications/additions were made by Sarik Goyal to adapt the code to
 # suit our project purposes.
 
@@ -124,7 +124,7 @@ def get_data(username_or_email, password, states,additional_filtering):
     params = {
     'username': username_or_email,
     'password': password}
-    # The below code (lines 124-138 were added by Sarik Goyal)
+    # The below code (lines 128-138) were added by Sarik Goyal
     filenames = []
     for state in states:
         state = state.lower()
