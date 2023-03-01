@@ -1,3 +1,7 @@
+# This code comes from the instructions regarding how to use the RDH API key.
+# Slight modifications/additions were made by Sarik Goyal to adapt the code to
+# suit our project purposes.
+
 #PARAMETERS TO SET
 
 #username or email associated with your RDH account
@@ -11,7 +15,7 @@ password = "bahfoq-hawWuf-9roszu"
 #Because of the limits of WordPress API, it can only retrieve a list of datasets for one state at a time (since many states have nearly 1,000 datasets), so if you are requesting data from multiple states this step may take several minutes, please be patient.
 #You may re-run again for any additional desired states (the script will ask you if you would like to re-run and you do not need to restart the script.
 #list your states as string "AL, minnesota, Kentucky" or in a list ["alabama","MN","kentucky"]. In either the list or string, please separate using commas.
-states = "GA" 
+states = None
 
 #You can filter datasets in the state(s) you designated with the criteria listed below. All filter options are case insensitive.
 #You may search by year as YYYY for all years from 2010 to 2021.
@@ -19,7 +23,7 @@ states = "GA"
 #You may search by geogrpahy with the following: precinct, block, block group, census tract, vtd, county, state, aiannh, zctas, senate districts, legislative districts, congressional districts, house of represenative districts (or other district names for the SLDL or SLDU for a given state -- "districts" will retrieve all district boundaries).
 #'***Please note that if you would like to retrieve the official redistricting dataset for your state, please use "official" (no quotations) in your query. Not all states will produce an offical dataset.
 #You may search by file type as CSV or SHP.
-additional_filtering = "2020 vtd census csv"
+additional_filtering = None
 #Import the four libraries needed to run the script. If you do not have these, you may need to install.
 import pandas as pd
 import requests
@@ -120,10 +124,18 @@ def get_data(username_or_email, password, states,additional_filtering):
     params = {
     'username': username_or_email,
     'password': password}
-    #subset the df by the additional string info
-    df['Title_Format'] = df.apply(lambda x: ' '.join([x['Title'],x['Format']]),axis=1)
-    df['Subset'] = df['Title_Format'].apply(lambda x: check_string(additional_filtering,x.lower()))
-    df = df[df['Subset']==True].copy()
+    # The below code (lines 124-138 were added by Sarik Goyal)
+    filenames = []
+    for state in states:
+        state = state.lower()
+        filename1 = state + "_2020_2020_vtd.zip"
+        filenames.append(filename1)
+        filename2 = state + "_vtd_2020_bound.zip"
+        filenames.append(filename2)
+        filename3 = state + "_pl2020_vtd.zip"
+        filenames.append(filename3)
+    df = df[df.Filename.isin(filenames)]
+    df = df[(df.Filename.str.contains("pl2020")) | (df.Format == "CSV")]
     #take all of the urls in the subset df and split them to just get the baseurl of the dataset (no params)
     urls = list(df['URL'])
     new_urls = []
@@ -134,12 +146,6 @@ def get_data(username_or_email, password, states,additional_filtering):
         dataset_id = i.split('&datasetid=')[1]
         id_dict.update({new:dataset_id})
         new_urls.append(new)
-    titles = list(df['Title_Format'])
-    if len(titles) == 0:
-        print('\nThere are no datasets that currently meet your criteria. Please re-run with different criteria to extract data.')
-    else:
-        titles = ', '.join(titles)
-        print('\nThe datasets to be extracted are: ', titles)
     ftype = list(df['Format'])
     data = dict(zip(new_urls,ftype))
     counter = 1

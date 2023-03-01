@@ -1,36 +1,44 @@
 import geopandas as gpd
 import pandas as pd
 from zipfile import ZipFile
+import rdh_api
 
-def merge_data(shp_filename, election_zip_filename, election_csv_filename, \
-  pop_filename):
+def get_merged_data(states):
     """
-    Adds election and demographic data to a VTD boundaries shapefile. Adds the
+    Adds election and population data to a VTD boundaries shapefile. Adds the
     new shapefile with the merged data to the working directory.
     
     Inputs:
-        shp_filename (string): the name of the zipped file from RDH 
-            that contains the contents of the VTD boundaries shapefile
-        election_zip_filename (string): the name of the zipped file from RDH
-            that contains a csv of election results by VTD
-        election_csv_filename (string): the name of the csv file within the
-            above zipfile - do not need to pull this file separately from RDH
-        pop_filename (string): the name of the csv file that contains
-            population and demographic values by VTD - pulled from VTD data by
-            Dave Bradlee
+        states (list of strings): a list of state abbreviations for which we
+            would like to collect data - not case sensitive
     """
-    gdf = gpd.read_file(shp_filename)
+    rdh_api.run(states = states)
 
-    zipfile = ZipFile(election_zip_filename)
-    election_data = pd.read_csv(zipfile.open(election_csv_filename))
+    for state in states:
 
-    pop_data = pd.read_csv(pop_filename)
+        state = state.lower()
+        shp_filename = state + "_vtd_2020_bound_shp.zip"
+        election_filekey = state + "_2020_2020_vtd"
+        election_zip = election_filekey + "_csv.zip"
+        election_csv = election_filekey + "/" + election_filekey + ".csv"
+        census_filekey = state + "_pl2020_vtd"
+        census_zip = census_filekey + "_csv.zip"
+        census_csv = census_filekey + ".csv"
 
-    add_election = gpd.GeoDataFrame(election_data.merge(gdf, on = "GEOID20"))
-    final_gdf = gpd.GeoDataFrame(pop_data.merge(add_election, on = "GEOID20"))
+        gdf = gpd.read_file(shp_filename)
 
-    final_gdf.to_file("../merged_shps/GA_VTD_merged.shp")
+        e_zipfile = ZipFile(election_zip)
+        election_data = pd.read_csv(e_zipfile.open(election_csv))
 
-merge_data("ga_vtd_2020_bound_shp.zip", "ga_2020_2020_vtd_csv.zip", \
-    "ga_2020_2020_vtd/ga_2020_2020_vtd.csv", \
-    "../vtd_data/2020_VTD/GA/2020_census_GA3.csv")
+        c_zipfile = ZipFile(census_zip)
+        census_data = pd.read_csv(c_zipfile.open(census_csv))
+        census_data = census_data[["POP100", "GEOID20"]]
+
+        add_election = gpd.GeoDataFrame(election_data.merge(gdf, on = "GEOID20"))
+        final_gdf = gpd.GeoDataFrame(census_data.merge(add_election, on = "GEOID20"))
+
+        state = state.upper()
+        final_gdf.to_file(f"../merged_shps/{state}_VTD_merged.shp")
+
+states = ["GA", "AZ", "NC", "NV"]
+get_merged_data(states)
