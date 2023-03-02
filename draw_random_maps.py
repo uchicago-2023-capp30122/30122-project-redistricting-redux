@@ -526,6 +526,32 @@ def recapture_orphan_precincts(df):
 
 ### PLOTTING FUNCTIONS ###
 
+def plot_GEOID20s(df):
+    '''
+    I need a giant blank map of every precinct with its GEOID20 on it for debugging
+    purposes.
+    Inputs:
+        -df(geopandas GeoDataFrame)
+    Returns: None
+    '''
+    df['center'] = df['geometry'].centroid #these points have a .x and .y attribute
+
+    df.plot(edgecolor="black", linewidth=0.1)
+    
+    #Annotating
+    #https://stackoverflow.com/questions/38899190/geopandas-label-polygons
+    for idx, row in df.iterrows():
+        #TODO: Make font size reasonable, plot truncated floats, perhaps in white
+        plt.pyplot.annotate(text=row['GEOID20'], 
+                            xy=(row['center'].x, row['center'].y), 
+                            horizontalalignment='center', fontsize=0.5)
+
+    timestamp = datetime.now().strftime("%m%d-%H%M%S")
+    filepath = f'maps/GEOID_testmap_' + timestamp
+    plt.pyplot.savefig(filepath, dpi=600) 
+    print(f"District map saved to {filepath}")
+    plt.pyplot.close()
+
 def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None):
     '''
     Plot a map that dissolves precinct boundaries to show districts as solid
