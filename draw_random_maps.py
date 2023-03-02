@@ -225,9 +225,9 @@ def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True, map_each
             fill_district_holes(df)
             break
         #randomize which district gets expanded so earlier ones aren't bigger
-        #random.shuffle(expand_order) - not sure this is super necessary
+        random.shuffle(expand_order) #- not sure this is super necessary
         for id in expand_order:
-            print(f"Expanding out from dart {id}...")
+            #print(f"Expanding out from dart {id}...")
             allowed = all_allowed_neighbors_of_district(df, id)
             #print(allowed)
             for neighbor in allowed:
@@ -241,7 +241,6 @@ def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True, map_each
                         print(f"District {id} has hit its target population size")
                         if id in expand_order:
                             expand_order.remove(id)
-                            print(f"No longer expanding district{id} in future cycles")
                         break
 
     print(district_pops(df))
