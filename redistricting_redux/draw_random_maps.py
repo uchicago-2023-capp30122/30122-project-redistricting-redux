@@ -189,8 +189,6 @@ def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True, map_each
     random.seed(seed) 
     
     target_pop = target_dist_pop(df, num_districts)
-    print(f"Target population size per district:{target_pop}")
-    #time.sleep(1)
 
     #throw darts
     for id in range(1, num_districts+1):
@@ -210,17 +208,17 @@ def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True, map_each
     holes_by_step = []
     while holes_left > 0: 
         go_rounds += 1
-        print(f"Starting expansion go-round number {go_rounds}.")
+        #print(f"Starting expansion go-round number {go_rounds}.")
         if map_each_step:
             print(f"Exporting map prior to go-round number {go_rounds}...")
             plot_redblue_precincts(df, state_postal="TEST")
         holes_left = len(df.loc[df['dist_id'].isnull()])
         holes_by_step.append(holes_left)
-        print(f"{holes_left} unfilled districts remain")
+        print(f"{holes_left} unfilled precincts remain")
         if holes_left == 0:
             break
         if len(holes_by_step) > 2 and holes_by_step[-1] == holes_by_step[-2]:
-            print("No more viable holes to fill through dart expansion")
+            print("Switching methods to fill rest of map...")
             fill_district_holes(df)
             break
         #randomize which district gets expanded so earlier ones aren't bigger
@@ -324,9 +322,9 @@ def fill_district_holes(df, map_each_step=False):
     go_rounds = 0
     while len(holes) > 0: 
         go_rounds += 1
-        print(f"Starting cleanup go-round number {go_rounds}.")
+        #print(f"Starting cleanup go-round number {go_rounds}.")
         holes = df.loc[df['dist_id'].isnull()]
-        print(f"({holes.shape[0]} unassigned precincts remaining)")
+        print(f"{holes.shape[0]} unfilled precincts remaining")
         for index, hole in holes.iterrows():
             real_dists_ard_hole = find_neighboring_districts(df, hole['neighbors'], include_None=False)
             if len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
@@ -343,7 +341,7 @@ def fill_district_holes(df, map_each_step=False):
             plot_redblue_precincts(df)
 
     print("Cleanup complete. All holes in districts filled. Districts expanded to fill empty space.")
-    print(district_pops(df))
+    #print(district_pops(df))
 
 def mapwide_pop_swap(df, allowed_deviation=70000):
     '''
@@ -683,7 +681,7 @@ def results_by_district(df, export_to=False):
     if export_to:
         print("Exporting by-district vote results to file...")
         timestamp = datetime.now().strftime("%m%d-%H%M%S")
-        filepath = f"merged_shps/ga20_test_dists_{timestamp}.shp"
+        filepath = f"redistricting_redux/exports/ga20_test_dists_{timestamp}.shp"
         df_dists.to_file(filepath)
         print("Export complete.")
         

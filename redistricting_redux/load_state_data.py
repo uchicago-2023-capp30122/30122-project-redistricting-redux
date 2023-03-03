@@ -35,10 +35,10 @@ def select_state(state_input=None, init_neighbors=False, affix_neighbors=True):
     state_fullname = [k for k, v in SUPPORTED_STATES.items() if v == state_input][0]
     print(f"You typed: {state_input} (for {state_fullname})")
     
-    return import_state(state_input, init_neighbors, affix_neighbors)
+    return load_state(state_input, init_neighbors, affix_neighbors)
 
 
-def import_state(state_input, init_neighbors=False, affix_neighbors=True):
+def load_state(state_input, init_neighbors=False, affix_neighbors=True):
     '''
     Helper function that actually imports the state after selecting it.
 
