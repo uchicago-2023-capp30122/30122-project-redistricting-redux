@@ -108,14 +108,11 @@ def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True, map_each
 
     #expand into area around darts
     holes_left = len(df.loc[df['dist_id'].isnull()])
-    go_rounds = 0
-    #randomize the order with each go-round so the first district doesn't get
+    #randomize the order with each go-round so first district doesn't get
     #really big first, etc.
     expand_order = [i for i in range(1,num_districts+1)]
     holes_by_step = []
     while holes_left > 0: 
-        go_rounds += 1
-        #print(f"Starting expansion go-round number {go_rounds}.")
         if map_each_step:
             print(f"Exporting map prior to go-round number {go_rounds}...")
             plot_redblue_precincts(df, state_postal="TEST")
@@ -182,7 +179,7 @@ def fill_district_holes(df, map_each_step=False):
                 #always draw into least populous neighbor, to make upcoming pop-swap less onerous
                 #neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
                 #draw_into_district(df, hole['GEOID20'], neighbor_dist_id)
-                draw_into_district(df, hole['GEOID20'], smallest_neighbor_district(df, hole['GEOID20']))
+                draw_into_district(df, hole['GEOID20'], smallest_neighbor_district(df, real_dists_ard_hole))
         
         if map_each_step:
             print(f"Exporting map for go-round number {go_rounds}...")
@@ -245,7 +242,7 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
         if len(proper_neighbors) == 0: 
             continue
         else:
-            smallest_neighbor = smallest_neighbor_district(df, row[idx['GEOID20']])
+            smallest_neighbor = smallest_neighbor_district(df, proper_neighbors)
             if (population_sum(df, district=row[idx['dist_id']]) > target_pop and 
                 population_sum(df, district=smallest_neighbor) < target_pop):
                 draw_to_do = (row[idx['dist_id']], row[idx['GEOID20']], smallest_neighbor)
@@ -266,6 +263,7 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
             pass
         else:
             draw_into_district(df, precinct, acceptor_district)
+            print("it drew a thing")
 
     #fix any district that is fully surrounded by dist_ids other than its 
     #own (redraw it to match majority dist_id surrounding it)
@@ -346,53 +344,32 @@ def find_neighboring_districts(df, lst, include_None=True):
 
     Returns (set): set of dist_ids
     '''
+    #multiindexing suggested by: Cole von Glahn
+    #Code inspired by: https://stackoverflow.com/questions/12096252/use-a-list-of-values-to-select-rows-from-a-pandas-dataframe
     dists_theyre_in = set(df[df['GEOID20'].isin(lst)].dist_id)
-    # dists_theyre_in = set()
-    # for precinct_name in lst:
-    #     #extract the number of the district of each neighbor.
-
-    #     #there may be a way to do this with multiindexing - "give me back all the rows where GEOID equals this"
-    #     #https://stackoverflow.com/questions/12096252/use-a-list-of-values-to-select-rows-from-a-pandas-dataframe
-    #     #found by Cole von Glahn
-
-    #     #df[df['A'].isin([3, 6])] -- if you pass the list of neighbor district to is_in
-    #     #df[df['GEOID20'].isin(lst)] should return list where that's true
-
-    #     dist_its_in = df.loc[df['GEOID20'] == precinct_name, 'dist_id'].iloc[0]
-    #     dists_theyre_in.add(dist_its_in)
     
     if include_None:
         return dists_theyre_in
     else:
         return {i for i in dists_theyre_in if i is not None}
 
-def smallest_neighbor_district(df, precinct):
+def smallest_neighbor_district(df, neighbor_districts):
     '''
-    Finds the least populous district that neighbors a given precinct.
-    Useful for map correction and population balancing stuff.
+    Finds the least populous district among those in a given set of districts
+    (i.e. that a list of precincts has been drawn into).
+    Seeing about refactoring some code.
 
     Inputs:
         -df (geopandas GeoDataFrame): State data by precinct/VTD
         -precinct (str): GEOID20 field of precinct
+    Returns (int): dist_id
     '''
-    #this is probably where you're losing the most time - this function has like four loops in it
-    #THIS IS THE SECOND CALL TO THE SAME FUNCTION - pass the other one in
-    #Cole: In order to eliminate the double call, you need to make neighboring_districts a parameter of smallest_neighbor function
-    #and then in the other place where you call this function, you need to call find_neighboring_districts() 
-    #and pass that as a parameter into smallest_neighboring_district
-    #then remove the call from smallest_neighboring_district
-    #Do you use this function anywhere else?
-    neighboring_districts = find_neighboring_districts(df, 
-                                                       df.loc[df.GEOID20==precinct,'neighbors'].item(),
-                                                       include_None=False)
     #print(neighboring_districts)
-    nabe_dist_pops = {v:k for k,v in district_pops(df).items() if k in neighboring_districts}
+    nabe_dists_by_pop = {v:k for k,v in district_pops(df).items() if k in neighbor_districts}
     #print(nabe_dist_pops)
-    #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
-    #you can refactor a later use of this to call this fxn instead
-    smallest_neighbor = nabe_dist_pops[min(nabe_dist_pops)] #JANK
-    #i don't think this broke anything but i also don't think it helped
+    smallest_neighbor = nabe_dists_by_pop[min(nabe_dists_by_pop)]
     return smallest_neighbor
+    
 
 def recapture_orphan_precincts(df):
     '''
