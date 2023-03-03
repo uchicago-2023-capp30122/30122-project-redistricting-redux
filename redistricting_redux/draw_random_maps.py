@@ -137,32 +137,19 @@ def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True, map_each
             for neighbor in allowed:
             #print(neighbor)
             #print(df.loc[df.GEOID20 == neighbor, 'dist_id'])
-                if df.loc[df.GEOID20 == neighbor, 'dist_id'].item() is None:
-                    if population_sum(df, district=id) <= target_pop:
-                    #print(f"Drawing {neighbor} into district {id}...")
-                        draw_into_district(df, neighbor, id)
-                    else:
-                        print(f"District {id} has hit its target population size")
-                        if id in expand_order:
-                            expand_order.remove(id)
-                        break
+                if population_sum(df, district=id) <= target_pop:
+                #print(f"Drawing {neighbor} into district {id}...")
+                    draw_into_district(df, neighbor, id)
+                else:
+                    print(f"District {id} has hit its target population size")
+                    if id in expand_order:
+                        expand_order.remove(id)
+                    break
 
     print(district_pops(df))
 
 
 ### MAP CLEANUP FUNCTIONS ###
-
-
-def get_all_holes(df):
-    '''
-    Get a dataframe of all precincts that have not yet been drawn into a district.
-    Helper for fill_district_holes().
-    Inputs:
-        -df(geopandas GeoDataFrame): state data by precinct/VTD
-
-    Returns (df object): set of precincts with all their attributes
-    '''
-    return df.loc[df['dist_id'].isnull()]
 
 
 def fill_district_holes(df, map_each_step=False):
@@ -199,7 +186,7 @@ def fill_district_holes(df, map_each_step=False):
         
         if map_each_step:
             print(f"Exporting map for go-round number {go_rounds}...")
-            plot_redblue_precincts(df)
+            plot_redblue_precincts(df, "filltest")
 
     print("Cleanup complete. All holes in districts filled. Districts expanded to fill empty space.")
 
@@ -209,9 +196,13 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     attempts to balance their population by moving  precincts from overpopulated
     districts into underpopulated ones.
 
-    This function is VERY SLOW - takes about 75-90 secondsto iterate
+    This function is VERY SLOW - takes about 75-90 seconds to iterate
     through the rows of the df, and then about 10-15 seconds to reclaim
     'orphan' precincts. TODO: vectorize it
+
+    Also curious if it's possible to iterate across the map in some geographic
+    way (i.e. sweep row-wise west to east, then north to south) or if that'd
+    require some big guns like networkx.
 
     Inputs:
         -df (geopandas GeoDataFrame): state data by precinct/VTD. Every precinct 
@@ -222,16 +213,17 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
 
     Returns: None, modifies df in-place
     '''
-    #QUESTION: Can you iterate geographically rather than by df index?
-    #TODO: Figure out how to deal with contiguity issues
 
     target_pop = target_dist_pop(df, n=max(df['dist_id']))
     draws_to_do = []
 
-    #maybe generate a column of the df with each row's proper neighbors?
-    #then select down to ones with 1 or more proper neighbors
-    #set a dist_to_move_to in a vectorized fashion
-    #then do those moves, and clear off/drop all those columns after each go round
+    #maybe generate *a column of the df* with that row's precinct's proper neighbor districts?
+    #then use a df boolean filter to select down to rows with with 1 or more proper neighbors
+    #set a dist_to_move_to on those in a vectorized fashion
+    #then do those moves, 
+    #and clear off/drop all those columns after each go round
+    #The issue with this is I'm not sure if my functions which take whole df as input vectorize
+    #I may be able to rewrite them to take a row though
 
     for idx, row in df.iterrows():
         print(f"Checking precinct index {idx}")
