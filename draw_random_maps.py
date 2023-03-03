@@ -282,7 +282,7 @@ def all_allowed_neighbors_of_district(df, id):
     '''
     #This code is more efficient but is possibly worse somehow?
     #idea for np.concatenate: https://stackoverflow.com/questions/28125265/concatenate-numpy-arrays-which-are-elements-of-a-list
-    nabe_set = set(np.concatenate(df.loc[df.dist_id == 1, 'neighbors'].values))
+    nabe_set = set(np.concatenate(df.loc[df.dist_id == id, 'neighbors'].values))
 
     #seems to be slower as a set comprehension than as a list comprehension
     allowed_neighbors = [nabe for nabe in nabe_set
@@ -662,7 +662,7 @@ def results_by_district(df, export_to=False):
     if export_to:
         print("Exporting by-district vote results to file...")
         timestamp = datetime.now().strftime("%m%d-%H%M%S")
-        filepath = f'merged_shps/ga20_test_dists_{timestamp}.shp"
+        filepath = f"merged_shps/ga20_test_dists_{timestamp}.shp"
         df_dists.to_file(filepath)
         print("Export complete.")
         
