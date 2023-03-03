@@ -189,17 +189,16 @@ def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True, map_each
     random.seed(seed) 
     
     target_pop = target_dist_pop(df, num_districts)
-    print(target_pop)
-    time.sleep(1)
+    print(f"Target population size per district:{target_pop}")
+    #time.sleep(1)
 
     #throw darts
     for id in range(1, num_districts+1):
-        print(f"Aiming dart at map for district {id}...")
         curr_index = random.randint(0, len(df)-1)
         while df.loc[curr_index, 'dist_id'] is not None:
             curr_index = random.randint(0, len(df)-1)
         curr_precinct = df.loc[curr_index, 'GEOID20']
-        print(f"Throwing dart at {curr_precinct}...")
+        print(f"Throwing dart for district {id} at precinct {curr_precinct}...")
         draw_into_district(df, curr_precinct, id)
 
     #expand into area around darts
@@ -460,7 +459,7 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_af
         print("Finding valid precincts to swap... This could take a few seconds...")
         mapwide_pop_swap(df, allowed_deviation)
         if plot_each_step:
-            plot_redblue_precincts(df)
+            plot_dissolved_map(df, "test")
         count += 1
         if count > stop_after:
             print(f"You've now swapped {count} times. Stopping")
@@ -581,8 +580,8 @@ def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", e
     df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
     df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
 
-    df_dists.plot(column='raw_margin', cmap='seismic_r', vmin=-.6,
-                                                         vmax=.6)
+    df_dists.plot(edgecolor="white", linewidth=0.1, column='raw_margin', 
+                  cmap='seismic_r', vmin=-.6, vmax=.6)
     
     #Annotating
     #https://stackoverflow.com/questions/38899190/geopandas-label-polygons
