@@ -2,7 +2,7 @@
 
 #from .load_state_data import select_state #has to be this way for python3 -m to work
 from load_state_data import select_state, load_state #has to be this way for poetry run python to work
-from draw_random_maps import draw_dart_throw_map, repeated_pop_swap, population_deviation, target_dist_pop
+from draw_random_maps import draw_dart_throw_map, repeated_pop_swap, population_deviation, target_dist_pop, plot_dissolved_map
 from collections import OrderedDict
 import time
 from stats import population_sum
@@ -86,7 +86,8 @@ def run(state_input=None):
     if plot_choice not in YES:
         print("Okay. Though you really should pick 'yes' next time to see the map plotting feature!")
     else:
-        print("The map lives in the <TBD> directory. Go to that directory and open <FILEPATH> to look at it!")
+        fp = plot_dissolved_map(df, state_input, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None)
+        print(f"The map lives in the /redistricting_redux/maps directory. Go to that directory and open {fp} to look at it!")
 
 
 

@@ -322,7 +322,6 @@ def fill_district_holes(df, map_each_step=False):
     go_rounds = 0
     while len(holes) > 0: 
         go_rounds += 1
-        #print(f"Starting cleanup go-round number {go_rounds}.")
         holes = df.loc[df['dist_id'].isnull()]
         print(f"{holes.shape[0]} unfilled precincts remaining")
         for index, hole in holes.iterrows():
@@ -341,7 +340,6 @@ def fill_district_holes(df, map_each_step=False):
             plot_redblue_precincts(df)
 
     print("Cleanup complete. All holes in districts filled. Districts expanded to fill empty space.")
-    #print(district_pops(df))
 
 def mapwide_pop_swap(df, allowed_deviation=70000):
     '''
@@ -349,7 +347,9 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     attempts to balance their population by moving  precincts from overpopulated
     districts into underpopulated ones.
 
-    This function is VERY SLOW
+    This function is VERY SLOW - takes about 75-90 secondsto iterate
+    through the rows of the df, and then about 10-15 seconds to reclaim
+    'orphan' precincts. TODO: vectorize it
 
     Inputs:
         -df (geopandas GeoDataFrame): state data by precinct/VTD. Every precinct 
@@ -362,44 +362,61 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     '''
     #QUESTION: Can you iterate geographically rather than by df index?
     #TODO: Figure out how to deal with contiguity issues
-    #assert (the dist_id column has no Nones in it)
+
     target_pop = target_dist_pop(df, n=max(df['dist_id']))
     draws_to_do = []
 
-    for _, precinct in df.iterrows():
+    #maybe generate a column of the df with each row's proper neighbors?
+    #then select down to ones with 1 or more proper neighbors
+    #set a dist_to_move_to in a vectorized fashion
+    #then do those moves, and clear off/drop all those columns after each go round
+
+    for idx, precinct in df.iterrows():
+        print(f"Checking precinct index {idx}")
         #generate list of precinct neighbors, and list of districts those neighbors are in
         neighboring_dists = find_neighboring_districts(df, precinct['neighbors'])
 
-        if len(neighboring_dists) == 1 and tuple(neighboring_dists)[0] == precinct['dist_id']:
-            #this is not on a district border
-            pass #is there a way to only iterate through borders upfront? saves a lot of computation time
-        else: #if this precinct has neighbors in other districts:
+        proper_neighbors = {dist for dist in neighboring_dists if dist != precinct['dist_id']}
+        if len(proper_neighbors) == 0: 
+            continue
+        else:
+            smallest_neighbor = smallest_neighbor_district(df, precinct['GEOID20'])
+            if (population_sum(df, district=precinct['dist_id']) > target_pop and 
+                population_sum(df, district=smallest_neighbor) < target_pop):
+                draw_to_do = (precinct['dist_id'], precinct['GEOID20'], smallest_neighbor)
+                draws_to_do.append(draw_to_do)
 
-            #get population of this precinct's district
-            this_prec_dist_pop = population_sum(df, district=precinct['dist_id'])
+        #OLD CODE PRE-3/3/2023
+        # if len(neighboring_dists) == 1 and tuple(neighboring_dists)[0] == precinct['dist_id']:
+        #     #this is not on a district border
+        #     pass #is there a way to only iterate through borders upfront? saves a lot of computation time
+        # else: #if this precinct has neighbors in other districts:
 
-            #get current population of each neighboring district with below-target population
-            proper_neighbors = {dist : population_sum(df, district=dist) 
-                                for dist in neighboring_dists 
-                                if dist != precinct['dist_id']
-                                and population_sum(df, district=dist) < target_pop}
-            if len(proper_neighbors) > 0: #all neighbors are of higher population
-                if this_prec_dist_pop > target_pop:
-                    #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
-                    smallest_neighbor = [k for k,v in proper_neighbors.items() if v == min(proper_neighbors.values())][0] #JANK
-                    #prepare to reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
-                    draw_to_do = (precinct['dist_id'], precinct['GEOID20'], smallest_neighbor)
-                    draws_to_do.append(draw_to_do)
+        #     #get population of this precinct's district
+        #     this_prec_dist_pop = population_sum(df, district=precinct['dist_id'])
+
+        #     #get current population of each neighboring district with below-target population
+        #     proper_neighbors = {dist : population_sum(df, district=dist) 
+        #                         for dist in neighboring_dists 
+        #                         if dist != precinct['dist_id']
+        #                         and population_sum(df, district=dist) < target_pop}
+        #     if len(proper_neighbors) > 0: #all neighbors are of higher population
+        #         if this_prec_dist_pop > target_pop:
+        #             #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
+        #             smallest_neighbor = [k for k,v in proper_neighbors.items() if v == min(proper_neighbors.values())][0] #JANK
+        #             #prepare to reassign THIS precinct's dist_id to that of the least populous underpopulated neighbor
+        #             draw_to_do = (precinct['dist_id'], precinct['GEOID20'], smallest_neighbor)
+        #             draws_to_do.append(draw_to_do)
 
     print("Doing all valid drawings one at a time...")
     for draw in draws_to_do:
         donor_district, precinct, acceptor_district = draw
         #make sure acceptor district isn't too large to be accepting precincts
-        #see past commits for more notes re: cyclical behavior
         if population_sum(df, district=acceptor_district) >= target_pop + (allowed_deviation / 2):
-            print("Skipping a draw because target district is already too big")
+            pass
+        #make sure donor district isn't to small to be giving precincts
         elif population_sum(df, district=donor_district) <= target_pop - (allowed_deviation / 2):
-            print("Skipping a draw because donor district is too small to give up more people")
+            pass
         else:
             draw_into_district(df, precinct, acceptor_district)
 
@@ -607,10 +624,12 @@ def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", e
     #TODO: Add a legend of dist_ids that doesn't overlap with map
 
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = f'maps/{state_postal}_testmap_' + timestamp
+    filepath = f'redistricting_redux/maps/{state_postal}_map_' + timestamp
     plt.pyplot.savefig(filepath, dpi=300) 
-    print(f"District map saved to {filepath}")
+    #print(f"District map saved to {filepath}")
     plt.pyplot.close()
+
+    return filepath
 
 def plot_redblue_precincts(df, state_postal="", dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=14):
     '''
@@ -655,7 +674,7 @@ def plot_redblue_precincts(df, state_postal="", dcol="G20PREDBID", rcol="G20PRER
 
 ### STATS FUNCTIONS (to be moved over to stats or elsewhere, perhaps) ###
 
-def results_by_district(df, export_to=False):
+def results_by_district(df, state_abbv="", export_to=False):
     '''
     Compresses the df down to a table of by-district stats, where each row
     represents the entire area with one dist_id. Dissolve process is slow,
@@ -681,7 +700,7 @@ def results_by_district(df, export_to=False):
     if export_to:
         print("Exporting by-district vote results to file...")
         timestamp = datetime.now().strftime("%m%d-%H%M%S")
-        filepath = f"redistricting_redux/exports/ga20_test_dists_{timestamp}.shp"
+        filepath = f"redistricting_redux/exports/{state_abbv}_test_dists_{timestamp}.shp"
         df_dists.to_file(filepath)
         print("Export complete.")
         
