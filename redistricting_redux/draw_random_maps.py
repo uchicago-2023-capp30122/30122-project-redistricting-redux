@@ -224,23 +224,38 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     #and clear off/drop all those columns after each go round
     #The issue with this is I'm not sure if my functions which take whole df as input vectorize
     #I may be able to rewrite them to take a row though
+    #cole: this is called "mask it" - applying to boolean just applies it to things that are true
 
-    for idx, row in df.iterrows():
-        print(f"Checking precinct index {idx}")
+    #source for itertuples change:
+    #https://stackoverflow.com/questions/44634972/how-to-access-a-field-of-a-namedtuple-using-a-variable-for-the-field-name
+    idx = {name: i for i, name in enumerate(list(df), start=1)}
+
+    count = 0
+    print("Checking precinct indices...")
+    for row in df.itertuples():
+        count += 1
+        #or just unpack the desired columns if that's easier to red
+        #zag_info = (name, city, street) etc.
+        #print(f"Checking precinct index {count}")
         #generate list of precinct neighbors, and list of districts those neighbors are in
-        neighboring_dists = find_neighboring_districts(df, row['neighbors'])
+        #CALL NUMBER 1 OF THIS FUNCTION
+        neighboring_dists = find_neighboring_districts(df, row[idx['neighbors']])
 
-        proper_neighbors = {dist for dist in neighboring_dists if dist != row['dist_id']}
+        proper_neighbors = {dist for dist in neighboring_dists if dist != row[idx['dist_id']]}
         if len(proper_neighbors) == 0: 
             continue
         else:
-            smallest_neighbor = smallest_neighbor_district(df, row['GEOID20'])
-            if (population_sum(df, district=row['dist_id']) > target_pop and 
+            smallest_neighbor = smallest_neighbor_district(df, row[idx['GEOID20']])
+            if (population_sum(df, district=row[idx['dist_id']]) > target_pop and 
                 population_sum(df, district=smallest_neighbor) < target_pop):
-                draw_to_do = (row['dist_id'], row['GEOID20'], smallest_neighbor)
+                draw_to_do = (row[idx['dist_id']], row[idx['GEOID20']], smallest_neighbor)
                 draws_to_do.append(draw_to_do)
 
     print("Doing all valid drawings one at a time...")
+    #Cole: there should be a way to do this without this loop
+    #do a vector operation on the big thing to reduce it down to smaller list of things
+    #just say if it doesn't pass the population_sum test
+    #
     for draw in draws_to_do:
         donor_district, precinct, acceptor_district = draw
         #make sure acceptor district isn't too large to be accepting precincts
@@ -331,11 +346,20 @@ def find_neighboring_districts(df, lst, include_None=True):
 
     Returns (set): set of dist_ids
     '''
-    dists_theyre_in = set()
-    for precinct_name in lst:
-        #extract the number of the district of each neighbor.
-        dist_its_in = df.loc[df['GEOID20'] == precinct_name, 'dist_id'].iloc[0]
-        dists_theyre_in.add(dist_its_in)
+    dists_theyre_in = set(df[df['GEOID20'].isin(lst)].dist_id)
+    # dists_theyre_in = set()
+    # for precinct_name in lst:
+    #     #extract the number of the district of each neighbor.
+
+    #     #there may be a way to do this with multiindexing - "give me back all the rows where GEOID equals this"
+    #     #https://stackoverflow.com/questions/12096252/use-a-list-of-values-to-select-rows-from-a-pandas-dataframe
+    #     #found by Cole von Glahn
+
+    #     #df[df['A'].isin([3, 6])] -- if you pass the list of neighbor district to is_in
+    #     #df[df['GEOID20'].isin(lst)] should return list where that's true
+
+    #     dist_its_in = df.loc[df['GEOID20'] == precinct_name, 'dist_id'].iloc[0]
+    #     dists_theyre_in.add(dist_its_in)
     
     if include_None:
         return dists_theyre_in
@@ -351,15 +375,23 @@ def smallest_neighbor_district(df, precinct):
         -df (geopandas GeoDataFrame): State data by precinct/VTD
         -precinct (str): GEOID20 field of precinct
     '''
+    #this is probably where you're losing the most time - this function has like four loops in it
+    #THIS IS THE SECOND CALL TO THE SAME FUNCTION - pass the other one in
+    #Cole: In order to eliminate the double call, you need to make neighboring_districts a parameter of smallest_neighbor function
+    #and then in the other place where you call this function, you need to call find_neighboring_districts() 
+    #and pass that as a parameter into smallest_neighboring_district
+    #then remove the call from smallest_neighboring_district
+    #Do you use this function anywhere else?
     neighboring_districts = find_neighboring_districts(df, 
                                                        df.loc[df.GEOID20==precinct,'neighbors'].item(),
                                                        include_None=False)
     #print(neighboring_districts)
-    nabe_dist_pops = {k:v for k,v in district_pops(df).items() if k in neighboring_districts}
+    nabe_dist_pops = {v:k for k,v in district_pops(df).items() if k in neighboring_districts}
     #print(nabe_dist_pops)
     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
     #you can refactor a later use of this to call this fxn instead
-    smallest_neighbor = [k for k,v in nabe_dist_pops.items() if v == min(nabe_dist_pops.values())][0] #JANK
+    smallest_neighbor = nabe_dist_pops[min(nabe_dist_pops)] #JANK
+    #i don't think this broke anything but i also don't think it helped
     return smallest_neighbor
 
 def recapture_orphan_precincts(df):
