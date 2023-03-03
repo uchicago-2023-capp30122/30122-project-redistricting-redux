@@ -332,11 +332,11 @@ def fill_district_holes(df, map_each_step=False):
             if len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
                 neighbor_dist_id = list(real_dists_ard_hole)[0] 
                 draw_into_district(df, hole['GEOID20'], neighbor_dist_id)
-            elif len(real_dists_ard_hole) >= 2: #i.e. if this could go into one of two other districts
-                #TODO: Make this find the neighboring district with least population 
-                #and always draw into that, to make upcoming pop-swap less onerous
-                neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
-                draw_into_district(df, hole['GEOID20'], neighbor_dist_id)
+            elif len(real_dists_ard_hole) >= 2: #i.e. if this could go into one of two other districts 
+                #always draw into least populous neighbor, to make upcoming pop-swap less onerous
+                #neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
+                #draw_into_district(df, hole['GEOID20'], neighbor_dist_id)
+                draw_into_district(df, hole['GEOID20'], smallest_neighbor_district(df, hole['GEOID20']))
         
         if map_each_step:
             print(f"Exporting map for go-round number {go_rounds}...")
@@ -424,7 +424,7 @@ def population_deviation(df):
     pop_dev = max(dist_pops.values()) - min(dist_pops.values())
     return pop_dev
 
-def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_after=99):
+def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_after=20):
     '''Repeatedly calls mapwide_pop_swap() until populations of districts are 
     within allowable deviation range. Terminates early if the procedure is 
     unable to equalize district populations any further. 
@@ -495,6 +495,25 @@ def find_neighboring_districts(df, lst, include_None=True):
     else:
         return {i for i in dists_theyre_in if i is not None}
 
+def smallest_neighbor_district(df, precinct):
+    '''
+    Finds the least populous district that neighbors a given precinct.
+    Useful for map correction and population balancing stuff.
+
+    Inputs:
+        -df (geopandas GeoDataFrame): State data by precinct/VTD
+        -precinct (str): GEOID20 field of precinct
+    '''
+    neighboring_districts = find_neighboring_districts(df, 
+                                                       df.loc[df.GEOID20==precinct,'neighbors'].item(),
+                                                       include_None=False)
+    #print(neighboring_districts)
+    nabe_dist_pops = {k:v for k,v in district_pops(df).items() if k in neighboring_districts}
+    #print(nabe_dist_pops)
+    #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
+    #you can refactor a later use of this to call this fxn instead
+    smallest_neighbor = [k for k,v in nabe_dist_pops.items() if v == min(nabe_dist_pops.values())][0] #JANK
+    return smallest_neighbor
 
 def recapture_orphan_precincts(df):
     '''
@@ -511,15 +530,11 @@ def recapture_orphan_precincts(df):
     '''
     #make a complex boolean to filter the df and then just iterate on that
 
-    #It seems like this is happening way too often
-    num_orphans_reclaimed = 0 #debugging
     for idx, row in df.iterrows():
         neighboring_districts = find_neighboring_districts(df, row['neighbors']) #include_None should be unnecessary
         if row['dist_id'] not in neighboring_districts: 
             print(f"Reclaiming orphan precinct {row['GEOID20']}...")
             draw_into_district(df, row['GEOID20'], random.choice(tuple(neighboring_districts)))
-            num_orphans_reclaimed += 1
-    print(num_orphans_reclaimed)
 
 
 ### PLOTTING FUNCTIONS ###
@@ -580,7 +595,7 @@ def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", e
     df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
     df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
 
-    df_dists.plot(edgecolor="white", linewidth=0.1, column='raw_margin', 
+    df_dists.plot(edgecolor="gray", linewidth=0.15, column='raw_margin', 
                   cmap='seismic_r', vmin=-.6, vmax=.6)
     
     #Annotating
@@ -686,6 +701,6 @@ def district_pops(df):
     as values
     '''
     pops_dict = {}
-    for i in range(1, max(df.dist_id)+1):
+    for i in range(1, max([id for id in df.dist_id if id is not None])+1):
         pops_dict[i] = population_sum(df, district=i)
     return pops_dict
