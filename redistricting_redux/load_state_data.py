@@ -49,7 +49,7 @@ def import_state(state_input, init_neighbors=False, affix_neighbors=True):
     state_fullname = [k for k, v in SUPPORTED_STATES.items() if v == state_input][0] #DRY
 
     print(f"Importing {state_fullname} 2020 Redistricting Data Hub data...")
-    fp = f"merged_shps/{state_input}_VTD_merged.shp"
+    fp = f"redistricting_redux/merged_shps/{state_input}_VTD_merged.shp"
     state_data = gpd.read_file(fp)
     if "Tot_2020_t" in state_data.columns:
         state_data.rename(columns={"Tot_2020_t","POP100"})
@@ -59,7 +59,7 @@ def import_state(state_input, init_neighbors=False, affix_neighbors=True):
         set_precinct_neighbors(state_data, state_input)
         print("Precinct neighbors calculated")
     if affix_neighbors: #maybe figure out how to do these as command line flags
-        neighbor_fp = f'merged_shps/{state_input}_2020_neighbors.csv'
+        neighbor_fp = f'redistricting_redux/merged_shps/{state_input}_2020_neighbors.csv'
         affix_neighbors_list(state_data, neighbor_fp)
         print("Neighbors list affixed from file")
     state_data['dist_id'] = None
@@ -98,7 +98,7 @@ def set_precinct_neighbors(df, state_postal):
             print(f"Neighbors for precinct {index} calculated")
     
     print("Saving neighbors list to csv so you don't have to do this again...")
-    df['neighbors'].to_csv(f'merged_shps/{state_postal}_2020_neighbors.csv')
+    df['neighbors'].to_csv(f'redistricting_redux/merged_shps/{state_postal}_2020_neighbors.csv')
 
 
 def affix_neighbors_list(df, neighbor_filename):
