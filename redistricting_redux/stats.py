@@ -114,9 +114,9 @@ def population_density(df, colname, district=None):
 
 ###MORE STUFF ADDED 3/4 TO FEED INTO METRICS###
 
-def mean_voteshare(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None, as_percent=False):
+def mean_voteshare(df, party="d", dcol="G20PREDBID", rcol="G20PRERTRU", district=None, as_percent=False):
     '''
-    Returns the mean voteshare for Democratic candidate in a state or district.
+    Returns the mean voteshare for candidate in a state or district.
     Note: for simplicity's sake, considers only Democratic and Republican votes
     in the relevant area (ignores third-party votes, as different third party
     candidates are on the ballot in different states, making that a confusing
@@ -127,6 +127,7 @@ def mean_voteshare(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None, as_p
 
     Inputs: 
         -df (Geopandas GeoDataFrame): state data by precinct/VTD
+        -party (int): abbreviation 
         -dcol (str): name of the column in the data representing the Democratic
         candidate's votes earned.
         -rcol (str): name of the column in the data representing the Republican
@@ -138,11 +139,17 @@ def mean_voteshare(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None, as_p
     
     Returns (float): that voteshare
     '''
+    assert party[0].lower() in ['d', 'r'], "Our model only supports 'd' and 'r' parties" 
 
     d_total = population_sum(df, dcol, district)
     r_total = population_sum(df, rcol, district)
 
-    voteshare = (d_total) / (d_total + r_total)
+    if party[0].lower() == 'd':
+        voteshare = (d_total) / (d_total + r_total)
+    elif party[0].lower() == 'r':
+        voteshare = (r_total) / (d_total + r_total)
+    else: 
+        voteshare = 0
     if as_percent:
         return voteshare * 100
     else:
