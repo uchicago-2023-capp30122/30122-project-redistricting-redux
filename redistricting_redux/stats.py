@@ -185,3 +185,9 @@ def district_size(df, num_districts=None, sqrt_output=True):
         size_metric = sqrt(size_metric)
 
     return size_metric
+
+def winner_2020(df):
+    if mean_voteshare(df, party="d") > 50.00:
+        return "JOE BIDEN, the Democratic (blue) candidate"
+    else:
+        return "DONALD TRUMP, the Republican (red) candidate"

@@ -229,8 +229,6 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     recapture_orphan_precincts(df, idx)
 
     print(district_pops(df))
-    end = time.time()
-    print(end-start)
 
 def population_deviation(df):
     '''
@@ -277,7 +275,6 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_af
         print(f"Now doing swap cycle #{count}...")
         print(f"The most and least populous district differ by: {population_deviation(df)}")
         pop_devs_so_far.append(population_deviation(df))
-        print("Finding valid precincts to swap... This could take about a minute...")
         mapwide_pop_swap(df, allowed_deviation)
         if plot_each_step:
             plot_dissolved_map(df, "test")

@@ -1,11 +1,11 @@
 #This file, and organization of project into package, by: Matt Jackson
 
 #from .load_state_data import select_state #has to be this way for python3 -m to work
-from load_state_data import select_state, load_state #has to be this way for poetry run python to work
+from load_state_data import load_state #has to be this way for poetry run python to work
 from draw_random_maps import draw_dart_throw_map, repeated_pop_swap, population_deviation, target_dist_pop, plot_dissolved_map
 from collections import OrderedDict
 import time
-from stats import population_sum
+from stats import population_sum, mean_voteshare, winner_2020
 
 SUPPORTED_STATES = OrderedDict({
                                 'AZ': {'fullname':"Arizona", 'num_districts':9},
@@ -17,8 +17,6 @@ SUPPORTED_STATES = OrderedDict({
 #TODO: allow for taking in state abbreviation as optional argument from command line
 
 def run(state_input=None):
-    print("This is the first test of running this project from the command line.")
-    #data = select_state()
 
     while state_input not in SUPPORTED_STATES:
         state_input = input("Type a two-letter state postal abbreviation, or type 'list' to see list of supported states: ")
@@ -28,7 +26,7 @@ def run(state_input=None):
                 print(k, v)
         elif state_input in {'quit', 'exit', 'esc', 'escape', 'halt', 'stop'}:
             break
-        elif state_input not in SUPPORTED_STATES.values():
+        elif state_input not in SUPPORTED_STATES:
             print("That's not the postal code of a state we currently have data for.")
     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
     state_fullname = SUPPORTED_STATES[state_input]['fullname']
@@ -51,13 +49,13 @@ def run(state_input=None):
 
     num_districts = SUPPORTED_STATES[state_input]['num_districts']
     target_pop = target_dist_pop(df, num_districts)
-    print(f"({state_fullname} has {num_districts} Congressional districts and {population_sum(df)} people.\nGoal is: {target_pop} people per district")
+    print(f"({state_fullname} has {num_districts} Congressional districts and {population_sum(df)} people.)\nGoal is: {target_pop} people per district")
     time.sleep(2)
 
     draw_dart_throw_map(df, num_districts, seed=user_seed)
 
     
-
+    #maybe make this a while loop so people can choose how long to balance for
     deviation = population_deviation(df)
     if deviation <= target_pop // 10:
         print("It looks like these districts' populations are pretty balanced!")
@@ -80,9 +78,21 @@ def run(state_input=None):
                           plot_each_step=False, stop_after=20)
 
     print("Okay, we have our map set up. Let's estimate how fair it is!")
+    winner = winner_2020(df)
+    if "JOE BIDEN" in winner:
+        print(f"For reference, {winner}, won {state_fullname} in 2020 with {mean_voteshare(df, party='d', as_percent=True):.2f}% of the major-party vote.")
+    elif "DONALD TRUMP" in winner:
+        print(f"For reference, {winner}, won {state_fullname} in 2020 with {mean_voteshare(df, party='r', as_percent=True):.2f}% of the major-party vote.")
+    print("Our statistical metrics suggest that a fair map should have:")
     print("SARIK METRICS STUFF GOES HERE")
 
-    plot_choice = input("Would you like to see what your map looks like?\n")
+    print("Your map has:")
+    #dissolve, print out: district number, POP100, point_swing
+
+    print("EVALUATE SARIK FAIRNESS CONDITION")
+    print("Message about whether your map looks fair or unfair!")
+
+    plot_choice = input("Would you like to see a plot of your map on the state?\n")
     if plot_choice not in YES:
         print("Okay. Though you really should pick 'yes' next time to see the map plotting feature!")
     else:
