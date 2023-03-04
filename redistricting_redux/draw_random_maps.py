@@ -210,6 +210,12 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     #I may be able to rewrite them to take a row though
     #cole: this is called "mask it" - applying to boolean just applies it to things that are true
 
+    #Okay I think I want something like
+    #df['neighboring_dists'] = [set([df.loc[df.GEOID20 == i, 'dist_id'].item() for i in array]) for array in df['neighbors']]
+    #this takes about 11 seconds
+    #somehow delete out the dist_id from the set -- .remove() isn't working and 
+    #df[df['dist_id'] in df['neighbor_disttest']] isn't working either -- TODO: figure out
+
     #source for itertuples change:
     #https://stackoverflow.com/questions/44634972/how-to-access-a-field-of-a-namedtuple-using-a-variable-for-the-field-name
     idx = {name: i for i, name in enumerate(list(df), start=1)}
@@ -291,10 +297,10 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_af
 
     pop_devs_so_far = []
     while population_deviation(df) >= allowed_deviation:
+        #check whether method is repeatedly swapping same districts back & forth
         if len(pop_devs_so_far) > 5 and pop_devs_so_far[-4:-2] == pop_devs_so_far[-2::]:
             print("It looks like this swapping process is trapped in a cycle. Stopping")
             break
-            #might want to add something for a "near-cycle" i.e. same value has shown up 3 times in the last 5 spins
         count += 1
         if count > stop_after:
             print(f"You've now swapped {count-1} times. Stopping")
