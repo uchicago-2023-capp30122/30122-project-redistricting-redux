@@ -1,9 +1,8 @@
 '''
-population_sum, blue_red_margin, target_dist_pop, metric_area, population_density
-functions by: Matt Jackson
-
-
+All functions in file by: Matt Jackson
 '''
+from math import sqrt
+
 #Separating basic stats that aren't *inherently* mapping functions into
 #their own file for better code organization
 
@@ -155,3 +154,34 @@ def mean_voteshare(df, party="d", dcol="G20PREDBID", rcol="G20PRERTRU", district
     else:
         return voteshare
 
+def district_size(df, num_districts=None, sqrt_output=True):
+    '''
+    A measure of how many VTDs in the state are expected to be in each district.
+    Used in metrics stuff.
+    Idea for function from Sarik Goyal.
+
+    Inputs:
+        -df(geopandas GeoDataFrame): state data by precinct/VTD
+        -num_districts(int or None): optional parameter if you want to hard-set
+        number of districts to something other than what it is supposed to be
+        -sqrt_output(boolean): determines whether output of function is square rooted
+    '''
+    if num_districts is None: #if user didn't pass in a number of districts as
+    #input, get the number of districts from the actual map under consideration
+        try:
+            num_districts = max(df['dist_id'])
+        except:
+            print("This map has no districts drawn on it")
+            num_districts = 0
+    
+    num_vtds = len(df)
+
+    try:
+        size_metric = num_vtds / num_districts 
+    except ZeroDivisionError:
+        size_metric = 0
+
+    if sqrt_output:
+        size_metric = sqrt(size_metric)
+
+    return size_metric
