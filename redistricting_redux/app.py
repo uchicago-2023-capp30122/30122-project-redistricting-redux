@@ -7,6 +7,12 @@ from collections import OrderedDict
 import time
 from stats import population_sum, mean_voteshare, winner_2020
 
+#suppress FutureWarning and UserWarning in dissolve_map()
+#syntax from "Mike" answer (1/22/2013) here:
+#https://stackoverflow.com/questions/14463277/how-to-disable-python-warnings
+import warnings
+warnings.filterwarnings("ignore")
+
 SUPPORTED_STATES = OrderedDict({
                                 'AZ': {'fullname':"Arizona", 'num_districts':9},
                                 'GA': {'fullname':"Georgia", 'num_districts':14},
@@ -80,7 +86,7 @@ def run(state_input=None):
             print("That's not a valid integer, so let's go with 5.")
             user_steps = 5
         repeated_pop_swap(df, allowed_deviation=int(user_allowed_deviation), 
-                          plot_each_step=False, stop_after=user_steps)
+                          plot_each_step=False, stop_after=int(user_steps))
         #if we're still not at user_allowed_deviation:
             #give user some chance to keep balancing here y/n, if y, go back up to...
 
