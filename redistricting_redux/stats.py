@@ -63,11 +63,11 @@ def blue_red_margin(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None):
     Republican candidate got 100% of the vote and the Democrat got 0%. An 
     exactly tied race will result in 0.0)
     '''
-    blue_total = population_sum(df, dcol, district)
-    red_total = population_sum(df, rcol, district)
+    d_total = population_sum(df, dcol, district)
+    r_total = population_sum(df, rcol, district)
 
     try:
-        return (blue_total - red_total) / (blue_total + red_total)
+        return (d_total - r_total) / (d_total + r_total)
     except ZeroDivisionError:
         return 0.0
 
@@ -110,3 +110,41 @@ def population_density(df, colname, district=None):
     '''A rough population density statistic to feed into Sarik's metrics'''
     #Is there any reason to also do this for precincts?
     return population_sum(df, colname, district) / metric_area(df, district)
+
+
+###MORE STUFF ADDED 3/4 TO FEED INTO METRICS###
+
+def mean_voteshare(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None, as_percent=False):
+    '''
+    Returns the mean voteshare for Democratic candidate in a state or district.
+    Note: for simplicity's sake, considers only Democratic and Republican votes
+    in the relevant area (ignores third-party votes, as different third party
+    candidates are on the ballot in different states, making that a confusing
+    thing to take into account this late)
+
+    To get Republican voteshare in two-way contest, call 1 - mean_voteshare()
+    (or 100 - mean_voteshare() for percent mode)
+
+    Inputs: 
+        -df (Geopandas GeoDataFrame): state data by precinct/VTD
+        -dcol (str): name of the column in the data representing the Democratic
+        candidate's votes earned.
+        -rcol (str): name of the column in the data representing the Republican
+        candidate's votes earned.
+        -district (any): district ID. If None, calculates margin for the whole
+        state.
+        -as_percent (boolean): determines whether to use a decimal (e.g. 0.52) 
+        or a percent-like number (e.g. 52 for 52%)
+    
+    Returns (float): that voteshare
+    '''
+
+    d_total = population_sum(df, dcol, district)
+    r_total = population_sum(df, rcol, district)
+
+    voteshare = (d_total) / (d_total + r_total)
+    if as_percent:
+        return voteshare * 100
+    else:
+        return voteshare
+
