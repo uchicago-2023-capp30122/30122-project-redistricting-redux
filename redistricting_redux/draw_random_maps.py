@@ -182,11 +182,8 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
 
     This function is VERY SLOW - takes about 75-90 seconds to iterate
     through the rows of the df, and then about 10-15 seconds to reclaim
-    'orphan' precincts. TODO: vectorize it
-
-    Also curious if it's possible to iterate across the map in some geographic
-    way (i.e. sweep row-wise west to east, then north to south) or if that'd
-    require some big guns like networkx.
+    'orphan' precincts. Attempts to vectorize and speed it up (visible in
+    UNUSED_FILES/mapwide_popswap_2.py) were largely unsuccessful and abandoned.
 
     Inputs:
         -df (geopandas GeoDataFrame): state data by precinct/VTD. Every precinct 
@@ -197,52 +194,24 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
 
     Returns: None, modifies df in-place
     '''
-
     target_pop = target_dist_pop(df, n=max(df['dist_id']))
     draws_to_do = []
-
-    #maybe generate *a column of the df* with that row's precinct's proper neighbor districts?
-    #then use a df boolean filter to select down to rows with with 1 or more proper neighbors
-    #set a dist_to_move_to on those in a vectorized fashion
-    #then do those moves, 
-    #and clear off/drop all those columns after each go round
-    #The issue with this is I'm not sure if my functions which take whole df as input vectorize
-    #I may be able to rewrite them to take a row though
-    #cole: this is called "mask it" - applying to boolean just applies it to things that are true
-
-    #Okay I think I want something like
-    #df['neighboring_dists'] = [set([df.loc[df.GEOID20 == i, 'dist_id'].item() for i in array]) for array in df['neighbors']]
-    #this takes about 11 seconds
-    #somehow delete out the dist_id from the set -- .remove() isn't working and 
-    #df[df['dist_id'] in df['neighbor_disttest']] isn't working either -- TODO: figure out
-
-    #source for itertuples change:
+    print("Checking for precincts to moved from overpopulated districts to underpopulated neighbors.")
+    print("This could take up to a minute...")
+    #source for itertuples:
     #https://stackoverflow.com/questions/44634972/how-to-access-a-field-of-a-namedtuple-using-a-variable-for-the-field-name
     idx = {name: i for i, name in enumerate(list(df), start=1)}
-
     for row in df.itertuples():
-        #or just unpack the desired columns if that's easier to red
-        #zag_info = (name, city, street) etc.
-        #print(f"Checking precinct index {count}")
-        #generate list of precinct neighbors, and list of districts those neighbors are in
-        #CALL NUMBER 1 OF THIS FUNCTION
         neighboring_dists = find_neighboring_districts(df, row[idx['neighbors']])
-
         proper_neighbors = {dist for dist in neighboring_dists if dist != row[idx['dist_id']]}
-        if len(proper_neighbors) == 0: 
-            continue
-        else:
+        if len(proper_neighbors) > 0:
             smallest_neighbor = smallest_neighbor_district(df, proper_neighbors)
             if (population_sum(df, district=row[idx['dist_id']]) > target_pop and 
                 population_sum(df, district=smallest_neighbor) < target_pop):
                 draw_to_do = (row[idx['dist_id']], row[idx['GEOID20']], smallest_neighbor)
                 draws_to_do.append(draw_to_do)
 
-    print("Doing all valid drawings one at a time...")
-    #Cole: there should be a way to do this without this loop
-    #do a vector operation on the big thing to reduce it down to smaller list of things
-    #just say if it doesn't pass the population_sum test
-    #
+    print("Doing all valid precinct reassignments...")
     for draw in draws_to_do:
         donor_district, precinct, acceptor_district = draw
         #make sure acceptor district isn't too large to be accepting precincts
@@ -253,7 +222,6 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
             pass
         else:
             draw_into_district(df, precinct, acceptor_district)
-            #print("it drew a thing")
 
     #fix any district that is fully surrounded by dist_ids other than its 
     #own (redraw it to match majority dist_id surrounding it)
@@ -261,7 +229,8 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     recapture_orphan_precincts(df, idx)
 
     print(district_pops(df))
-
+    end = time.time()
+    print(end-start)
 
 def population_deviation(df):
     '''
@@ -416,8 +385,7 @@ def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", e
 
 
     df_dists.plot(edgecolor="gray", linewidth=0.15, column='raw_margin', 
-                  cmap='seismic_r', vmin=-.6, vmax=.6, cax=cax, legend=True,
-                  legend_kwds={'la'})
+                  cmap='seismic_r', vmin=-.6, vmax=.6)
     
     #Annotating
     #https://stackoverflow.com/questions/38899190/geopandas-label-polygons
