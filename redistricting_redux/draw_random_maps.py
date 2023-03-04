@@ -348,17 +348,43 @@ def recapture_orphan_precincts(df, idx):
             draw_into_district(df, row[idx['GEOID20']], smallest_neighbor_district(df, neighboring_districts))
 
 
+def dissolve_map(df):
+    '''
+    Dissolves a precinct-level map into districts. To be used only after
+    district assignment is finalized (i.e. after any population balancing
+    or modification you want to do).
+    The goal will be to refactor plot_dissolved_map to use this instead of doing
+    it in-function.
+
+    Inputs:
+        -df (geopandas GeoDataFrame): state preinct/VTD-level data, with 
+        polygons. 
+    
+    Returns (geopandas GeoDataFrame): state district-level data, by custom
+    disttricts we drew.
+    '''
+    df_dists = df.dissolve(by='dist_id', aggfunc=sum)
+    df_dists.reset_index(drop=True)
+
+    #may cause ZeroDivisionError in the edge case where a district is exactly tied
+    df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
+    df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
+    df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
+
+    return df_dists
+
 ### PLOTTING FUNCTIONS ###
 
-def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None):
+def plot_dissolved_map(df_dists, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None):
     '''
     Plot a map that dissolves precinct boundaries to show districts as solid
     colors based on their vote margin. Displays it on screen if user's 
     device allows for that.
 
     Inputs:
-        -df (geopandas GeoDataFrame): state precinct/VTD-level data, with 
-        polygons
+        -df (geopandas GeoDataFrame): state DISTRICT-level data, with 
+        polygons (you should call dissolve_map(df) first if you are trying to 
+        call this on a precinct-level map)
         -state_postal (str of length 2)
         -dcol (str): Name of column that contains Democratic voteshare data
         (i.e. estimated number of votes cast for Joe Biden in the precinct in
@@ -370,16 +396,6 @@ def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", e
 
     Returns: None, displays plot on-screen and saves image to file
     '''
-    print("Dissolving precincts to full districts...")
-    df_dists = df.dissolve(by='dist_id', aggfunc=sum)
-    df_dists.reset_index(drop=True)
-    set_blue_red_diff(df_dists)
-    #will cause a ZeroDivisionError if any districts are exactly tied
-    df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
-
-    df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
-    df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
-
 
     df_dists.plot(edgecolor="gray", linewidth=0.15, column='raw_margin', 
                   cmap='seismic_r', vmin=-.6, vmax=.6)
@@ -396,7 +412,6 @@ def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", e
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
     filepath = f'redistricting_redux/maps/{state_postal}_map_' + timestamp
     plt.pyplot.savefig(filepath, dpi=300) 
-    #print(f"District map saved to {filepath}")
     plt.pyplot.close()
 
     return filepath
