@@ -108,14 +108,9 @@ def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True, map_each
 
     #expand into area around darts
     holes_left = len(df.loc[df['dist_id'].isnull()])
-    go_rounds = 0
-    #randomize the order with each go-round so the first district doesn't get
-    #really big first, etc.
     expand_order = [i for i in range(1,num_districts+1)]
     holes_by_step = []
     while holes_left > 0: 
-        go_rounds += 1
-        #print(f"Starting expansion go-round number {go_rounds}.")
         if map_each_step:
             print(f"Exporting map prior to go-round number {go_rounds}...")
             plot_redblue_precincts(df, state_postal="TEST")
@@ -128,17 +123,12 @@ def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True, map_each
             print("Switching methods to fill rest of map...")
             fill_district_holes(df)
             break
-        #randomize which district gets expanded so earlier ones aren't bigger
-        random.shuffle(expand_order) #- not sure this is super necessary
+        #randomize the order in which districts expand each go-round
+        random.shuffle(expand_order) 
         for id in expand_order:
-            #print(f"Expanding out from dart {id}...")
             allowed = all_allowed_neighbors_of_district(df, id)
-            #print(allowed)
             for neighbor in allowed:
-            #print(neighbor)
-            #print(df.loc[df.GEOID20 == neighbor, 'dist_id'])
                 if population_sum(df, district=id) <= target_pop:
-                #print(f"Drawing {neighbor} into district {id}...")
                     draw_into_district(df, neighbor, id)
                 else:
                     print(f"District {id} has hit its target population size")
@@ -175,14 +165,8 @@ def fill_district_holes(df, map_each_step=False):
         print(f"{holes.shape[0]} unfilled precincts remaining")
         for index, hole in holes.iterrows():
             real_dists_ard_hole = find_neighboring_districts(df, hole['neighbors'], include_None=False)
-            if len(real_dists_ard_hole) == 1: #i.e. if this borders or is inside exactly one district:
-                neighbor_dist_id = list(real_dists_ard_hole)[0] 
-                draw_into_district(df, hole['GEOID20'], neighbor_dist_id)
-            elif len(real_dists_ard_hole) >= 2: #i.e. if this could go into one of two other districts 
-                #always draw into least populous neighbor, to make upcoming pop-swap less onerous
-                #neighbor_dist_id = random.choice(tuple(real_dists_ard_hole)) #pick one at random
-                #draw_into_district(df, hole['GEOID20'], neighbor_dist_id)
-                draw_into_district(df, hole['GEOID20'], smallest_neighbor_district(df, hole['GEOID20']))
+            if len(real_dists_ard_hole) > 0: 
+                draw_into_district(df, hole['GEOID20'], smallest_neighbor_district(df, real_dists_ard_hole))
         
         if map_each_step:
             print(f"Exporting map for go-round number {go_rounds}...")
@@ -198,11 +182,8 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
 
     This function is VERY SLOW - takes about 75-90 seconds to iterate
     through the rows of the df, and then about 10-15 seconds to reclaim
-    'orphan' precincts. TODO: vectorize it
-
-    Also curious if it's possible to iterate across the map in some geographic
-    way (i.e. sweep row-wise west to east, then north to south) or if that'd
-    require some big guns like networkx.
+    'orphan' precincts. Attempts to vectorize and speed it up (visible in
+    UNUSED_FILES/mapwide_popswap_2.py) were largely unsuccessful and abandoned.
 
     Inputs:
         -df (geopandas GeoDataFrame): state data by precinct/VTD. Every precinct 
@@ -213,34 +194,24 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
 
     Returns: None, modifies df in-place
     '''
-
     target_pop = target_dist_pop(df, n=max(df['dist_id']))
     draws_to_do = []
-
-    #maybe generate *a column of the df* with that row's precinct's proper neighbor districts?
-    #then use a df boolean filter to select down to rows with with 1 or more proper neighbors
-    #set a dist_to_move_to on those in a vectorized fashion
-    #then do those moves, 
-    #and clear off/drop all those columns after each go round
-    #The issue with this is I'm not sure if my functions which take whole df as input vectorize
-    #I may be able to rewrite them to take a row though
-
-    for idx, row in df.iterrows():
-        print(f"Checking precinct index {idx}")
-        #generate list of precinct neighbors, and list of districts those neighbors are in
-        neighboring_dists = find_neighboring_districts(df, row['neighbors'])
-
-        proper_neighbors = {dist for dist in neighboring_dists if dist != row['dist_id']}
-        if len(proper_neighbors) == 0: 
-            continue
-        else:
-            smallest_neighbor = smallest_neighbor_district(df, row['GEOID20'])
-            if (population_sum(df, district=row['dist_id']) > target_pop and 
+    print("Checking for precincts to moved from overpopulated districts to underpopulated neighbors.")
+    print("This could take up to a minute...")
+    #source for itertuples:
+    #https://stackoverflow.com/questions/44634972/how-to-access-a-field-of-a-namedtuple-using-a-variable-for-the-field-name
+    idx = {name: i for i, name in enumerate(list(df), start=1)}
+    for row in df.itertuples():
+        neighboring_dists = find_neighboring_districts(df, row[idx['neighbors']])
+        proper_neighbors = {dist for dist in neighboring_dists if dist != row[idx['dist_id']]}
+        if len(proper_neighbors) > 0:
+            smallest_neighbor = smallest_neighbor_district(df, proper_neighbors)
+            if (population_sum(df, district=row[idx['dist_id']]) > target_pop and 
                 population_sum(df, district=smallest_neighbor) < target_pop):
-                draw_to_do = (row['dist_id'], row['GEOID20'], smallest_neighbor)
+                draw_to_do = (row[idx['dist_id']], row[idx['GEOID20']], smallest_neighbor)
                 draws_to_do.append(draw_to_do)
 
-    print("Doing all valid drawings one at a time...")
+    print("Doing all valid precinct reassignments...")
     for draw in draws_to_do:
         donor_district, precinct, acceptor_district = draw
         #make sure acceptor district isn't too large to be accepting precincts
@@ -255,10 +226,11 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     #fix any district that is fully surrounded by dist_ids other than its 
     #own (redraw it to match majority dist_id surrounding it)
     print("Reassigning districts 'orphaned' by swapping process...")
-    recapture_orphan_precincts(df)
+    recapture_orphan_precincts(df, idx)
 
     print(district_pops(df))
-
+    end = time.time()
+    print(end-start)
 
 def population_deviation(df):
     '''
@@ -290,31 +262,29 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_af
 
     Returns: None, modifies df in place
     '''
-    count = 1
+    count = 0
 
     pop_devs_so_far = []
     while population_deviation(df) >= allowed_deviation:
+        #check whether method is repeatedly swapping same districts back & forth
         if len(pop_devs_so_far) > 5 and pop_devs_so_far[-4:-2] == pop_devs_so_far[-2::]:
             print("It looks like this swapping process is trapped in a cycle. Stopping")
             break
-            #might want to add something for a "near-cycle" i.e. same value has shown up 3 times in the last 5 spins
+        count += 1
+        if count > stop_after:
+            print(f"You've now swapped {count-1} times. Stopping")
+            break
         print(f"Now doing swap cycle #{count}...")
-        print("The most and least populous district differ by:")
-        print(population_deviation(df))
+        print(f"The most and least populous district differ by: {population_deviation(df)}")
         pop_devs_so_far.append(population_deviation(df))
-        time.sleep(1)
-        print("Finding valid precincts to swap... This could take a few seconds...")
+        print("Finding valid precincts to swap... This could take about a minute...")
         mapwide_pop_swap(df, allowed_deviation)
         if plot_each_step:
             plot_dissolved_map(df, "test")
-        count += 1
-        if count > stop_after:
-            print(f"You've now swapped {count} times. Stopping")
-            break
         dist_pops = district_pops(df)
     if population_deviation(df) <= allowed_deviation:
         print("You've reached your population balance target. Hooray!")
-    print(f"Population deviation at every step was: \n{pop_devs_so_far}")
+    #print(f"Population deviation at every step was: \n{pop_devs_so_far}")
 
 
 def find_neighboring_districts(df, lst, include_None=True):
@@ -331,38 +301,34 @@ def find_neighboring_districts(df, lst, include_None=True):
 
     Returns (set): set of dist_ids
     '''
-    dists_theyre_in = set()
-    for precinct_name in lst:
-        #extract the number of the district of each neighbor.
-        dist_its_in = df.loc[df['GEOID20'] == precinct_name, 'dist_id'].iloc[0]
-        dists_theyre_in.add(dist_its_in)
+    #multiindexing suggested by: Cole von Glahn
+    #Code inspired by: https://stackoverflow.com/questions/12096252/use-a-list-of-values-to-select-rows-from-a-pandas-dataframe
+    dists_theyre_in = set(df[df['GEOID20'].isin(lst)].dist_id)
     
     if include_None:
         return dists_theyre_in
     else:
         return {i for i in dists_theyre_in if i is not None}
 
-def smallest_neighbor_district(df, precinct):
+def smallest_neighbor_district(df, neighbor_districts):
     '''
-    Finds the least populous district that neighbors a given precinct.
-    Useful for map correction and population balancing stuff.
+    Finds the least populous district among those in a given set of districts
+    (i.e. that a list of precincts has been drawn into).
+    Seeing about refactoring some code.
 
     Inputs:
         -df (geopandas GeoDataFrame): State data by precinct/VTD
         -precinct (str): GEOID20 field of precinct
+    Returns (int): dist_id
     '''
-    neighboring_districts = find_neighboring_districts(df, 
-                                                       df.loc[df.GEOID20==precinct,'neighbors'].item(),
-                                                       include_None=False)
     #print(neighboring_districts)
-    nabe_dist_pops = {k:v for k,v in district_pops(df).items() if k in neighboring_districts}
+    nabe_dists_by_pop = {v:k for k,v in district_pops(df).items() if k in neighbor_districts}
     #print(nabe_dist_pops)
-    #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
-    #you can refactor a later use of this to call this fxn instead
-    smallest_neighbor = [k for k,v in nabe_dist_pops.items() if v == min(nabe_dist_pops.values())][0] #JANK
+    smallest_neighbor = nabe_dists_by_pop[min(nabe_dists_by_pop)]
     return smallest_neighbor
 
-def recapture_orphan_precincts(df):
+
+def recapture_orphan_precincts(df, idx):
     '''
     Finds precincts that are entirely disconnected from the bulk of their 
     district and reassigns them to a surrounding district.
@@ -372,45 +338,20 @@ def recapture_orphan_precincts(df):
     Inputs:
         -df (geopandas GeoDataFrame): state level precinct/VTD data. Should
         have dist_id assigned for every precinct.
+        -idx (dict): idx object created when using itertuples earlier
 
     Returns: None, modifies df in-place 
     '''
     #make a complex boolean to filter the df and then just iterate on that
 
-    for idx, row in df.iterrows():
-        neighboring_districts = find_neighboring_districts(df, row['neighbors']) #include_None should be unnecessary
-        if row['dist_id'] not in neighboring_districts: 
-            print(f"Reclaiming orphan precinct {row['GEOID20']}...")
-            draw_into_district(df, row['GEOID20'], random.choice(tuple(neighboring_districts)))
+    for row in df.itertuples():
+        neighboring_districts = find_neighboring_districts(df, row[idx['neighbors']])
+        if row[idx['dist_id']] not in neighboring_districts: 
+            print(f"Reclaiming orphan precinct {row[idx['GEOID20']]}...")
+            draw_into_district(df, row[idx['GEOID20']], smallest_neighbor_district(df, neighboring_districts))
 
 
 ### PLOTTING FUNCTIONS ###
-
-def plot_GEOID20s(df):
-    '''
-    I need a giant blank map of every precinct with its GEOID20 on it for debugging
-    purposes.
-    Inputs:
-        -df(geopandas GeoDataFrame)
-    Returns: None
-    '''
-    df['center'] = df['geometry'].centroid #these points have a .x and .y attribute
-
-    df.plot(edgecolor="black", linewidth=0.1)
-    
-    #Annotating
-    #https://stackoverflow.com/questions/38899190/geopandas-label-polygons
-    for idx, row in df.iterrows():
-        #TODO: Make font size reasonable, plot truncated floats, perhaps in white
-        plt.pyplot.annotate(text=row['GEOID20'], 
-                            xy=(row['center'].x, row['center'].y), 
-                            horizontalalignment='center', fontsize=0.5)
-
-    timestamp = datetime.now().strftime("%m%d-%H%M%S")
-    filepath = f'maps/GEOID_testmap_' + timestamp
-    plt.pyplot.savefig(filepath, dpi=600) 
-    print(f"District map saved to {filepath}")
-    plt.pyplot.close()
 
 def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None):
     '''
@@ -442,13 +383,13 @@ def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", e
     df_dists['center'] = df_dists['geometry'].centroid #these points have a .x and .y attribute
     df_dists['point_swing'] = round(df_dists['raw_margin']*100, 2)
 
+
     df_dists.plot(edgecolor="gray", linewidth=0.15, column='raw_margin', 
                   cmap='seismic_r', vmin=-.6, vmax=.6)
     
     #Annotating
     #https://stackoverflow.com/questions/38899190/geopandas-label-polygons
     for idx, row in df_dists.iterrows():
-        #TODO: Make font size reasonable, plot truncated floats, perhaps in white
         plt.pyplot.annotate(text=row['point_swing'], 
                             xy=(row['center'].x, row['center'].y), 
                             horizontalalignment='center', fontsize=4)
@@ -462,6 +403,7 @@ def plot_dissolved_map(df, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", e
     plt.pyplot.close()
 
     return filepath
+
 
 def plot_redblue_precincts(df, state_postal="", dcol="G20PREDBID", rcol="G20PRERTRU", num_dists=14):
     '''
@@ -553,3 +495,32 @@ def district_pops(df):
     for i in range(1, max([id for id in df.dist_id if id is not None])+1):
         pops_dict[i] = population_sum(df, district=i)
     return pops_dict
+
+
+### DEBUGGING FUNCTIONS ###
+
+def plot_GEOID20s(df):
+    '''
+    Creates a giant blank map of every precinct with its GEOID20 on it for debugging
+    purposes. That map can then be eyeballed to see if neighbors functions are
+    working accurately.
+    Inputs:
+        -df(geopandas GeoDataFrame)
+    Returns: None, outputs plot to file
+    '''
+    df['center'] = df['geometry'].centroid #these points have a .x and .y attribute
+
+    df.plot(edgecolor="black", linewidth=0.1)
+    
+    #Annotating
+    #https://stackoverflow.com/questions/38899190/geopandas-label-polygons
+    for idx, row in df.iterrows():
+        plt.pyplot.annotate(text=row['GEOID20'], 
+                            xy=(row['center'].x, row['center'].y), 
+                            horizontalalignment='center', fontsize=0.5)
+
+    timestamp = datetime.now().strftime("%m%d-%H%M%S")
+    filepath = f'maps/GEOID_testmap_' + timestamp
+    plt.pyplot.savefig(filepath, dpi=600) 
+    print(f"District map saved to {filepath}")
+    plt.pyplot.close()
