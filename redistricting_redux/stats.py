@@ -1,9 +1,8 @@
 '''
-population_sum, blue_red_margin, target_dist_pop, metric_area, population_density
-functions by: Matt Jackson
-
-
+All functions in file by: Matt Jackson
 '''
+from math import sqrt
+
 #Separating basic stats that aren't *inherently* mapping functions into
 #their own file for better code organization
 
@@ -63,11 +62,11 @@ def blue_red_margin(df, dcol="G20PREDBID", rcol="G20PRERTRU", district=None):
     Republican candidate got 100% of the vote and the Democrat got 0%. An 
     exactly tied race will result in 0.0)
     '''
-    blue_total = population_sum(df, dcol, district)
-    red_total = population_sum(df, rcol, district)
+    d_total = population_sum(df, dcol, district)
+    r_total = population_sum(df, rcol, district)
 
     try:
-        return (blue_total - red_total) / (blue_total + red_total)
+        return (d_total - r_total) / (d_total + r_total)
     except ZeroDivisionError:
         return 0.0
 
@@ -110,3 +109,85 @@ def population_density(df, colname, district=None):
     '''A rough population density statistic to feed into Sarik's metrics'''
     #Is there any reason to also do this for precincts?
     return population_sum(df, colname, district) / metric_area(df, district)
+
+
+###MORE STUFF ADDED 3/4 TO FEED INTO METRICS###
+
+def mean_voteshare(df, party="d", dcol="G20PREDBID", rcol="G20PRERTRU", district=None, as_percent=False):
+    '''
+    Returns the mean voteshare for candidate in a state or district.
+    Note: for simplicity's sake, considers only Democratic and Republican votes
+    in the relevant area (ignores third-party votes, as different third party
+    candidates are on the ballot in different states, making that a confusing
+    thing to take into account this late)
+
+    To get Republican voteshare in two-way contest, call 1 - mean_voteshare()
+    (or 100 - mean_voteshare() for percent mode)
+
+    Inputs: 
+        -df (Geopandas GeoDataFrame): state data by precinct/VTD
+        -party (int): abbreviation 
+        -dcol (str): name of the column in the data representing the Democratic
+        candidate's votes earned.
+        -rcol (str): name of the column in the data representing the Republican
+        candidate's votes earned.
+        -district (any): district ID. If None, calculates margin for the whole
+        state.
+        -as_percent (boolean): determines whether to use a decimal (e.g. 0.52) 
+        or a percent-like number (e.g. 52 for 52%)
+    
+    Returns (float): that voteshare
+    '''
+    assert party[0].lower() in ['d', 'r'], "Our model only supports 'd' and 'r' parties" 
+
+    d_total = population_sum(df, dcol, district)
+    r_total = population_sum(df, rcol, district)
+
+    if party[0].lower() == 'd':
+        voteshare = (d_total) / (d_total + r_total)
+    elif party[0].lower() == 'r':
+        voteshare = (r_total) / (d_total + r_total)
+    else: 
+        voteshare = 0
+    if as_percent:
+        return voteshare * 100
+    else:
+        return voteshare
+
+def district_size(df, num_districts=None, sqrt_output=True):
+    '''
+    A measure of how many VTDs in the state are expected to be in each district.
+    Used in metrics stuff.
+    Idea for function from Sarik Goyal.
+
+    Inputs:
+        -df(geopandas GeoDataFrame): state data by precinct/VTD
+        -num_districts(int or None): optional parameter if you want to hard-set
+        number of districts to something other than what it is supposed to be
+        -sqrt_output(boolean): determines whether output of function is square rooted
+    '''
+    if num_districts is None: #if user didn't pass in a number of districts as
+    #input, get the number of districts from the actual map under consideration
+        try:
+            num_districts = max(df['dist_id'])
+        except:
+            print("This map has no districts drawn on it")
+            num_districts = 0
+    
+    num_vtds = len(df)
+
+    try:
+        size_metric = num_vtds / num_districts 
+    except ZeroDivisionError:
+        size_metric = 0
+
+    if sqrt_output:
+        size_metric = sqrt(size_metric)
+
+    return size_metric
+
+def winner_2020(df):
+    if mean_voteshare(df, party="d") > mean_voteshare(df, party="r"):
+        return "JOE BIDEN, the Democratic (blue) candidate"
+    else:
+        return "DONALD TRUMP, the Republican (red) candidate"

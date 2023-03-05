@@ -1,6 +1,6 @@
-# Title: Simulating Partisan Proportionality of Districts
+# Title: Simulating Partisan Proportionality of Districts Using a Grid
 # Author: Sarik Goyal
-# Last Updated: 03/01/23
+# Last Updated: 03/04/23
 
 import random
 import numpy as np
@@ -171,14 +171,15 @@ def calculate_district_voteshares(grid, num_districts):
     '''
     grid_shape = np.shape(grid)
     grid_size = grid_shape[0]
+    districts_length = int(math.sqrt(num_districts))
     assert grid_shape[0] == grid_shape [1], f"grid must be square"
     assert (grid_size / math.sqrt(num_districts)).is_integer(), f"grid must be \
         divisible into the number of specified districts"
 
-    long_districts = np.split(grid, (grid_size / 2))
+    long_districts = np.split(grid, districts_length)
     all_districts = []
     for long_district in long_districts:
-        districts = np.split(long_district, (grid_size / 2), axis = 1)
+        districts = np.split(long_district, districts_length, axis = 1)
         all_districts.extend(districts)
 
     district_voteshares = []
@@ -191,12 +192,10 @@ def calculate_district_voteshares(grid, num_districts):
 
     return (district_voteshares, num_districts_won)
 
-def simulate_data(mean_voteshare, var, district_size, num_districts, ntrials, \
-    cluster = True):
+def simulate_data(mean_voteshare, var, district_size, num_districts, \
+        cluster = True):
     '''
-    Generates many grids and count the number of districts won for each grid.
-    Plots the relationship between the average statewide voteshare and the
-    percentage of districts won.
+    Generates a grid and counts the percentage of districts won.
     Inputs:
         mean_voteshare (float): the desired mean voteshare
         var (float): the desired variance of the voteshares
@@ -204,31 +203,27 @@ def simulate_data(mean_voteshare, var, district_size, num_districts, ntrials, \
         num_districts (int): the number of districts (must be a perfect square)
         cluster (bool): generates clustered grids if True, otherwise generates
             random grids
-        ntrials (int): the number of trials to run
     Returns:
-        datapoints (list of tuples): list of datapoints with each datapoint in 
-        the form (clustering_score, per_districts_won)
+        tuple of 2 values:
+            per_districts_won (float): the percentage of districts won
+            cluster_score (float): the clustering score for the grid
     '''
-    datapoints = []
-    for i in range(ntrials):
-        voteshare_list = generate_voteshares(mean_voteshare, var, \
-            district_size, num_districts)
-        if cluster:
-            grid = generate_clustered_grid(voteshare_list, district_size, \
-                num_districts)
-        else:
-            grid = generate_random_grid(voteshare_list, district_size, \
-                num_districts)
-        num_districts_won = calculate_district_voteshares(grid, \
-            num_districts)[1]
-        per_won = num_districts_won / num_districts
+    voteshare_list = generate_voteshares(mean_voteshare, var, \
+        district_size, num_districts)
+    if cluster:
+        grid = generate_clustered_grid(voteshare_list, district_size, \
+            num_districts)
+    else:
+        grid = generate_random_grid(voteshare_list, district_size, \
+            num_districts)
+    num_districts_won = calculate_district_voteshares(grid, \
+        num_districts)[1]
+    per_districts_won = num_districts_won / num_districts
 
-        neighbors_d = generate_neighbors(grid)
-        cluster_score = clustering_score(neighbors_d)
+    neighbors_d = generate_neighbors(grid)
+    cluster_score = clustering_score(neighbors_d)
 
-        datapoints.append((cluster_score, per_won))
-
-    return datapoints
+    return (per_districts_won, cluster_score)
 
 def generate_neighbors(grid):
     """

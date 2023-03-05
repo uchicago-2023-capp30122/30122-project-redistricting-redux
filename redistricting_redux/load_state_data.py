@@ -4,38 +4,9 @@ All functions in this file by: Matt Jackson
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+import math
 from collections import OrderedDict
 from ast import literal_eval
-
-SUPPORTED_STATES = OrderedDict({'Arizona': "AZ",
-                                'Georgia': "GA",
-                                'Nevada': "NV",
-                                'North Carolina': "NC"})
-
-def select_state(state_input=None, init_neighbors=False, affix_neighbors=True):
-    '''
-    Function that generalizes input to multiple states. To be used when we
-    have multiple states. This will eventually evolve into what runs from
-    the command line.
-
-    Inputs:
-        -none, requests input from user
-    Returns (geopandas GeoDataFrame), indirectly, by calling helper
-    '''
-    while state_input not in SUPPORTED_STATES.values():
-        state_input = input("Type a two-letter state postal abbreviation, or type 'list' to see list of supported states: ")
-        if state_input == 'list':
-            print("Here's a list of states currently supported by the program:")
-            print(SUPPORTED_STATES)
-        elif state_input in {'quit', 'exit', 'esc', 'escape', 'halt', 'stop'}:
-            break
-        elif state_input not in SUPPORTED_STATES.values():
-            print("That's not the postal code of a state we currently have data for.")
-    #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
-    state_fullname = [k for k, v in SUPPORTED_STATES.items() if v == state_input][0]
-    print(f"You typed: {state_input} (for {state_fullname})")
-    
-    return load_state(state_input, init_neighbors, affix_neighbors)
 
 
 def load_state(state_input, init_neighbors=False, affix_neighbors=True):
@@ -46,9 +17,8 @@ def load_state(state_input, init_neighbors=False, affix_neighbors=True):
         -state_input (str): 2-letter state postal code abbreviation
     Returns (geopandas GeoDataFrame)
     '''
-    state_fullname = [k for k, v in SUPPORTED_STATES.items() if v == state_input][0] #DRY
 
-    print(f"Importing {state_fullname} 2020 Redistricting Data Hub data...")
+    print(f"Importing {state_input} 2020 Redistricting Data Hub data...")
     fp = f"redistricting_redux/merged_shps/{state_input}_VTD_merged.shp"
     state_data = gpd.read_file(fp)
     if "Tot_2020_t" in state_data.columns:
@@ -118,3 +88,39 @@ def affix_neighbors_list(df, neighbor_filename):
     df['neighbors'] = df['neighbors'].apply(lambda x: 
                                             np.array(literal_eval(x.replace("\n", "").replace("' '", "', '")),
                                             dtype=object))
+
+def make_neighbors_dict(df, neighbors_as_lists=True):
+    '''
+    Creates a dictionary where each precinct's GEOID is a key,
+    and the GEOIDs of the precinct's neighbors are a corresponding value.
+    For metric stuff. Idea for function from Sarik Goyal
+
+    Inputs:
+        -df(geopandas GeoDataFrame): state data by precinct/VTD. MUST HAVE
+        NEIGHBORS LIST INSTANTIATED CORRECTLY
+
+    Returns (dict): that dictionary.
+    '''
+    assert 'neighbors' in df.columns, "This dataframe doesn't have neighbors instantiated yet!"
+
+    #Zip method for quick dict construction:
+    #https://www.includehelp.com/python/how-to-create-a-dictionary-of-two-pandas-dataframes-columns.aspx
+
+    df["dem_voteshare"] = df["G20PREDBID"] / (df["G20PREDBID"] + df["G20PRERTRU"])
+    geoids_to_voteshares = pd.Series(df.dem_voteshare.values, index = \
+        df.GEOID20).to_dict()
+    
+    #First map voteshares to array of neighboring GEOIDs
+    voteshares_to_geoid_neighbs = dict(zip(df.dem_voteshare, df.neighbors))
+        
+    neighbors_dict = {}
+    for voteshare, neighbors in voteshares_to_geoid_neighbs.items():
+        if not math.isnan(voteshare):
+            voteshare_neighbs = []
+            for neighbor in neighbors:
+                voteshare_neighb = geoids_to_voteshares[neighbor]
+                if not math.isnan(voteshare_neighb):
+                    voteshare_neighbs.append(voteshare_neighb)
+            neighbors_dict[voteshare] = voteshare_neighbs
+            
+    return neighbors_dict
