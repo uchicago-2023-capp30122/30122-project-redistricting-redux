@@ -5,10 +5,10 @@
 #PARAMETERS TO SET
 
 #username or email associated with your RDH account
-username_or_email = "mbjackson-capp"
+username_or_email = None
 
 #password for your RDH account
-password = "bahfoq-hawWuf-9roszu" 
+password = None
 
 #You can retrieve datasets by state by typing out the full state name or postal code abbreviation (e.g. "Alabama" or "alabama" or "AL" or "al").
 #If you would like data for multiple states, please separate by comma (e.g. "Wisconsin, mn").'
@@ -135,7 +135,6 @@ def get_data(username_or_email, password, states,additional_filtering):
         filename3 = state + "_pl2020_vtd.zip"
         filenames.append(filename3)
     df = df[df.Filename.isin(filenames)]
-    df = df[(df.Filename.str.contains("pl2020")) | (df.Format == "CSV")]
     #take all of the urls in the subset df and split them to just get the baseurl of the dataset (no params)
     urls = list(df['URL'])
     new_urls = []
@@ -178,17 +177,5 @@ def get_data(username_or_email, password, states,additional_filtering):
         counter = counter+1
     print('\nDone extracting datasets to current working directory.')
     print('Please re-run to extract additional data.')
-def check_versions():
-    pd_check = str((pd.__version__))=='1.3.1'
-    req_check = str(requests.__version__) == '2.25.1'
-    np_check = str(np.__version__)=='1.20.3'
-    if pd_check == False:
-        print('WARNING: You do not have the correct version of pandas to run this script. You may need to install pandas version 1.3.1 for this script to work.')
-    if req_check == False:
-        print('WARNING: You do not have the correct version of requests to run this script. You may need to install requests version 2.25.1 for this script to work.')
-    if np_check == False:
-        print('WARNING: You do not have the correct version of numpy to run this script. You may need to install numpy version 1.20.3 for this script to work.')
 def run(username_or_email = username_or_email,password = password,states=states,additional_filtering=additional_filtering):
-    check_versions()
     get_data(username_or_email, password, states,additional_filtering)
-run()

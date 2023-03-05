@@ -5,7 +5,7 @@ import pandas as pd
 from zipfile import ZipFile
 import rdh_api
 
-def get_merged_data(states):
+def get_merged_data(states, username, password):
     """
     Adds election and population data to a VTD boundaries shapefile. Adds the
     new shapefile with the merged data to the working directory.
@@ -13,8 +13,10 @@ def get_merged_data(states):
     Inputs:
         states (list of strings): a list of state abbreviations for which we
             would like to collect data - not case sensitive
+        username (str): the username of the API user
+        password (str): the password of the API user
     """
-    rdh_api.run(states = states)
+    rdh_api.run(states = states, username_or_email = username, password = password)
 
     for state in states:
 
@@ -40,7 +42,15 @@ def get_merged_data(states):
         final_gdf = gpd.GeoDataFrame(census_data.merge(add_election, on = "GEOID20"))
 
         state = state.upper()
-        final_gdf.to_file(f"../merged_shps/{state}_VTD_merged.shp")
+        final_gdf.to_file(f"redistricting_redux/merged_shps/{state}_VTD_merged.shp")
 
-states = ["GA", "AZ", "NC", "NV"]
-get_merged_data(states)
+        print("Data pulled and merged. Please check the merged_shps repository for the new shapefile")
+
+def run_api_pull():
+    state = input("Please enter a state's 2 letter abbreviation: ")
+    states = [state]
+    username = input("Please enter the email account associated with the Redistricting Data Hub user: ")
+    password = input("Please enter the user's password: ")
+    get_merged_data(states, username, password)
+
+run_api_pull()
