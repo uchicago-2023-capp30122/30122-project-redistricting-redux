@@ -115,7 +115,16 @@ def run(state_input=None):
     print("positive point_swing: Democratic win; negative: Republican win")
     print(df_dists[['POP100', 'point_swing']])
 
-    print("TODO: EVALUATE SARIK FAIRNESS CONDITION")
+    print("Let's use our partisan balance model to predict the expected \
+        partisan balance of our state")
+    ntrials = input("Please input the number of trials you would like to run \
+        to generate the model. More trials will result in longer runtime, but \
+        will produce more precise results. For context, 100 trials takes about \
+        a minute.")
+    if not ntrials.isdigit():
+        ntrials = 50
+        print("Setting ntrials to 50 - input was not numeric")
+    prediction = predict_state_voteshare(state_input, ntrials)
     print("TODO: Message about whether your map looks fair or unfair!")
 
     plot_choice = input("Would you like to see a plot of your map on the state?\n")
