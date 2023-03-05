@@ -156,9 +156,12 @@ def fill_district_holes(df):
         go_rounds += 1
         holes = df.loc[df['dist_id'].isnull()]
         print(f"{holes.shape[0]} unfilled precincts remaining")
+        time.sleep(1)
         for index, hole in holes.iterrows():
             real_dists_ard_hole = find_neighboring_districts(df, hole['neighbors'], include_None=False)
-            if len(real_dists_ard_hole) > 0: 
+            if len(real_dists_ard_hole) == 1:
+                draw_into_district(df, hole['GEOID20'], int(max(real_dists_ard_hole)))
+            elif len(real_dists_ard_hole) >= 2: 
                 draw_into_district(df, hole['GEOID20'], 
                                    smallest_neighbor_district(df, real_dists_ard_hole))
 

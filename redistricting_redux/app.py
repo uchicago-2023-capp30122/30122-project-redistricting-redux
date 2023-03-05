@@ -1,7 +1,6 @@
 #This file, and organization of project into package, by: Matt Jackson
 
-#from .load_state_data import select_state #has to be this way for python3 -m to work
-from load_state_data import load_state #has to be this way for poetry run python to work
+from load_state_data import load_state 
 from draw_random_maps import draw_dart_throw_map, repeated_pop_swap, population_deviation, district_pops, target_dist_pop, dissolve_map, plot_dissolved_map
 from regression import predict_state_voteshare
 from collections import OrderedDict
@@ -17,8 +16,11 @@ warnings.filterwarnings("ignore")
 SUPPORTED_STATES = OrderedDict({
                                 'AZ': {'fullname':"Arizona", 'num_districts':9},
                                 'GA': {'fullname':"Georgia", 'num_districts':14},
+                                'IL': {'fullname':"Illinois", 'num_districts':17},
                                 'NV': {'fullname':"Nevada", 'num_districts':4},
-                                'NC': {'fullname':"North Carolina", 'num_districts':14}
+                                'NC': {'fullname':"North Carolina", 'num_districts':14},
+                                'OH': {'fullname':"Ohio", 'num_districts':15},
+                                'TX': {'fullname':"Texas", 'num_districts':38}
                                 })
 
 #TODO: allow for taking in state abbreviation as optional argument from command line
@@ -27,11 +29,12 @@ def run(state_input=None):
 
     while state_input not in SUPPORTED_STATES:
         state_input = input("Type a two-letter state postal abbreviation, or type 'list' to see list of supported states: ").upper()
-        if state_input == 'list':
+        #print(state_input)
+        if state_input == 'LIST':
             print("Here's a list of states currently supported by the program:")
             for k, v in SUPPORTED_STATES.items():
-                print(k, v)
-        elif state_input in {'quit', 'exit', 'esc', 'escape', 'halt', 'stop'}:
+                print(f"{k} ({v['fullname']})")
+        elif state_input in {'QUIT', 'EXIT', 'ESC', 'ESCAPE', 'HALT', 'STOP'}:
             break
         elif state_input not in SUPPORTED_STATES:
             print("That's not the postal code of a state we currently have data for.")
@@ -139,7 +142,7 @@ def run(state_input=None):
         maj_party_seatshare = (d_dists_on_map / num_districts) * 100
     elif "Republican" in winner:
         maj_party_seatshare = (r_dists_on_map / num_districts) * 100
-    print(f"Which looks like the majority party is likely to get {maj_party_seatshare}% of the seats.")
+    print(f"Which looks like the majority party is likely to get {maj_party_seatshare:.2f}% of the seats.")
     print("Interesting!")
 
     plot_choice = input("Would you like to see a plot of your map on the state?\n")
