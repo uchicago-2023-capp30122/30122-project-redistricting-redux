@@ -118,5 +118,6 @@ def make_neighbors_dict(df, neighbors_as_lists=True):
     if neighbors_as_lists:
         #syntax for type conversion inspired by:
         #https://www.geeksforgeeks.org/python-type-conversion-in-dictionary-values/
-        neighbors_dict = [dict([k, list(v)] for k,v in neighbors_dict.items())]
+        #removed list brackets from this
+        neighbors_dict = dict([k, list(v)] for k,v in neighbors_dict.items())
     return neighbors_dict

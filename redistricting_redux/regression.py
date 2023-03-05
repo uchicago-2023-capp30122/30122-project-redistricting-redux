@@ -27,6 +27,7 @@ def generate_training_data(ntrials):
     possible_num_districts = [4, 9, 16, 25, 36, 49]
 
     for i in range(ntrials):
+        print(f"generate_training_data, Trial {i}")
         mean_voteshare = random.uniform(0.5, 0.7)
         var = random.uniform(0.01, 0.05)
         district_size = random.randint(2, 15)
@@ -74,13 +75,16 @@ def predict_state_voteshare(state, ntrials):
     Returns:
         Nothing - prints the expected partisan balance
     """
+    print("Creating model...")
     model = create_linear_model(ntrials)
 
     gdf = load_state_data.load_state(state)
     load_state_data.affix_neighbors_list(gdf, \
-        f"merged_shps/{state}_2020_neighbors.csv")
+        f"redistricting_redux/merged_shps/{state}_2020_neighbors.csv")
     neighbors_dict = load_state_data.make_neighbors_dict(gdf)
 
+    print(neighbors_dict)
+    print("Calculating clustering score...")
     cluster_score = proportionality.clustering_score(neighbors_dict)
     mean_vshare = stats.mean_voteshare(gdf)
     if mean_vshare > 0.5:
@@ -96,4 +100,5 @@ def predict_state_voteshare(state, ntrials):
 
     print(f"{maj_party} are expected to win {prediction * 100}% of the seats")
 
-predict_state_voteshare("GA", 100)
+#lowered second input from 100 to 10 to speed up testing
+predict_state_voteshare("GA", 10)
