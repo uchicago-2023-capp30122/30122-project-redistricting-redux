@@ -34,7 +34,6 @@ def run(state_input=None):
             break
         elif state_input not in SUPPORTED_STATES:
             print("That's not the postal code of a state we currently have data for.")
-    #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
     state_fullname = SUPPORTED_STATES[state_input]['fullname']
     print(f"You typed: {state_input} (for {state_fullname})")
 
@@ -64,7 +63,6 @@ def run(state_input=None):
     deviation = population_deviation(df)
     print(f"The most and least populous district differ by: {deviation}")
     
-    #maybe make this a while loop so people can choose how long to balance for
     if deviation <= target_pop // 10:
         print("It looks like these districts' populations are pretty balanced!")
     else:
@@ -99,9 +97,6 @@ def run(state_input=None):
             else:
                 print("It looks like districts still aren't as balanced as you want.")
                 swap_choice = input("Do you wish to continue the swapping process for more steps? ")
-                
-        #if we're still not at user_allowed_deviation:
-            #give user some chance to keep balancing here y/n, if y, go back up to...
 
     print("\nOkay, we have our map set up. Let's estimate how fair it is!")
     winner = winner_2020(df)
@@ -120,8 +115,8 @@ def run(state_input=None):
     print("positive point_swing: Democratic win; negative: Republican win")
     print(df_dists[['POP100', 'point_swing']])
 
-    print("EVALUATE SARIK FAIRNESS CONDITION")
-    print("Message about whether your map looks fair or unfair!")
+    print("TODO: EVALUATE SARIK FAIRNESS CONDITION")
+    print("TODO: Message about whether your map looks fair or unfair!")
 
     plot_choice = input("Would you like to see a plot of your map on the state?\n")
     if plot_choice not in YES:
