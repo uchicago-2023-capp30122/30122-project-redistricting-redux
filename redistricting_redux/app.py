@@ -3,6 +3,7 @@
 #from .load_state_data import select_state #has to be this way for python3 -m to work
 from load_state_data import load_state #has to be this way for poetry run python to work
 from draw_random_maps import draw_dart_throw_map, repeated_pop_swap, population_deviation, district_pops, target_dist_pop, dissolve_map, plot_dissolved_map
+from regression import predict_state_voteshare
 from collections import OrderedDict
 import time
 from stats import population_sum, mean_voteshare, winner_2020
