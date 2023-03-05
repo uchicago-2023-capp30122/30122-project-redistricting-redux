@@ -45,7 +45,7 @@ def run(state_input=None):
         user_seed = input("\nPick a lucky number for the seed of our random map drawing process: ")
         if user_seed in {'quit', 'exit', 'esc', 'escape', 'halt', 'stop'}:
             break
-        elif not user_seed.isnumeric():
+        elif not user_seed.isdigit():
             print("Come on, buddy. Just a regular old positive integer.")
         else:
             user_seed = int(user_seed)
@@ -78,7 +78,7 @@ def run(state_input=None):
     else:
         print("How much deviation will you allow between districts?")
         user_allowed_deviation = input(f"Given the imprecision of our precincts, we recommend no lower than {target_pop // 10}: ")
-        if not user_allowed_deviation.isnumeric():
+        if not user_allowed_deviation.isdigit():
             print("That's not a valid integer, so we'll just go with {target_pop // 10}.")
             user_allowed_deviation = target_pop // 10
         else:
@@ -87,7 +87,7 @@ def run(state_input=None):
         #Let user continue swapping process if they so choose
         while swap_choice in YES:
             user_steps = input(f"How many times do you want to iterate the swapping process? Each iteration can take 60-90 seconds.")
-            if not user_steps.isnumeric():
+            if not user_steps.isdigit():
                 print("That's not a valid integer, so let's go with 5.")
                 user_steps = 5
             repeated_pop_swap(df, allowed_deviation=user_allowed_deviation, 
@@ -106,8 +106,7 @@ def run(state_input=None):
     elif "DONALD TRUMP" in winner:
         winner_party = 'r'
     print(f"For reference, {winner}, won {state_fullname} in 2020 with {mean_voteshare(df, party=winner_party, as_percent=True):.2f}% of the major-party vote.")
-    print("Our statistical metrics suggest that a fair map should have:")
-    print("SARIK METRICS STUFF GOES HERE\n")
+
     time.sleep(1)
 
     print("Let's get the by-district results for your map. This may take a few seconds...")
@@ -116,17 +115,32 @@ def run(state_input=None):
     print("positive point_swing: Democratic win; negative: Republican win")
     print(df_dists[['POP100', 'point_swing']])
 
-    print("Let's use our partisan balance model to predict the expected \
-        partisan balance of our state")
-    ntrials = input("Please input the number of trials you would like to run \
-        to generate the model. More trials will result in longer runtime, but \
-        will produce more precise results. For context, 100 trials takes about \
-        a minute.")
+    time.sleep(1)
+
+    print("Let's now use our partisan balance model to predict the expected\npartisan balance of our state.")
+    print("Please input the number of trials you would like to run\nto generate the model.")
+    print("More trials will result in longer runtime, but\nwill produce more precise results.")
+    ntrials = input("For context, 100 trials takes about \na minute.: ")
     if not ntrials.isdigit():
         ntrials = 50
         print("Setting ntrials to 50 - input was not numeric")
-    prediction = predict_state_voteshare(state_input, ntrials)
-    print("TODO: Message about whether your map looks fair or unfair!")
+    prediction = predict_state_voteshare(state_input, int(ntrials))
+    
+    d_dists_on_map = 0
+    r_dists_on_map = 0
+    for dist_swing in df_dists['point_swing']:
+        if dist_swing > 0:
+            d_dists_on_map +=1
+        else:
+            r_dists_on_map += 1
+
+    print(f"By contrast, your map has {d_dists_on_map} districts that lean Democratic and {r_dists_on_map} districts that lean Republican.")
+    if "Democratic" in winner:
+        maj_party_seatshare = (d_dists_on_map / num_districts) * 100
+    elif "Republican" in winner:
+        maj_party_seatshare = (r_dists_on_map / num_districts) * 100
+    print(f"Which looks like the majority party is likely to get {maj_party_seatshare}% of the seats.")
+    print("Interesting!")
 
     plot_choice = input("Would you like to see a plot of your map on the state?\n")
     if plot_choice not in YES:
