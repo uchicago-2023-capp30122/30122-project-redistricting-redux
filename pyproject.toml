@@ -16,7 +16,6 @@ census = "^0.8.19"
 us = "^2.0.2"
 requests = "^2.25.1"
 numpy = "^1.20.3"
-sklearn = "^1.2.1"
 
 
 [tool.poetry.group.dev.dependencies]
