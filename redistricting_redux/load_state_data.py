@@ -7,36 +7,6 @@ import numpy as np
 from collections import OrderedDict
 from ast import literal_eval
 
-# SUPPORTED_STATES = OrderedDict({'Arizona': "AZ",
-#                                 'Georgia': "GA",
-#                                 'Nevada': "NV",
-#                                 'North Carolina': "NC"})
-
-# def select_state(state_input=None, init_neighbors=False, affix_neighbors=True):
-#     '''
-#     Function that generalizes input to multiple states. To be used when we
-#     have multiple states. This will eventually evolve into what runs from
-#     the command line.
-
-#     Inputs:
-#         -none, requests input from user
-#     Returns (geopandas GeoDataFrame), indirectly, by calling helper
-#     '''
-#     while state_input not in SUPPORTED_STATES.values():
-#         state_input = input("Type a two-letter state postal abbreviation, or type 'list' to see list of supported states: ")
-#         if state_input == 'list':
-#             print("Here's a list of states currently supported by the program:")
-#             print(SUPPORTED_STATES)
-#         elif state_input in {'quit', 'exit', 'esc', 'escape', 'halt', 'stop'}:
-#             break
-#         elif state_input not in SUPPORTED_STATES.values():
-#             print("That's not the postal code of a state we currently have data for.")
-#     #get value from key source: https://www.adamsmith.haus/python/answers/how-to-get-a-key-from-a-value-in-a-dictionary
-#     state_fullname = [k for k, v in SUPPORTED_STATES.items() if v == state_input][0]
-#     print(f"You typed: {state_input} (for {state_fullname})")
-    
-#     return load_state(state_input, init_neighbors, affix_neighbors)
-
 
 def load_state(state_input, init_neighbors=False, affix_neighbors=True):
     '''

@@ -134,8 +134,6 @@ def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True):
                         expand_order.remove(id)
                     break
 
-    print(district_pops(df))
-
 
 ### MAP CLEANUP FUNCTIONS ###
 
@@ -209,12 +207,11 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
         donor_district, precinct, acceptor_district = draw
         #make sure acceptor district isn't too large to be accepting precincts
         if population_sum(df, district=acceptor_district) >= target_pop + (allowed_deviation / 2):
-            pass
+            continue
         #make sure donor district isn't to small to be giving precincts
-        elif population_sum(df, district=donor_district) <= target_pop - (allowed_deviation / 2):
-            pass
-        else:
-            draw_into_district(df, precinct, acceptor_district)
+        if population_sum(df, district=donor_district) <= target_pop - (allowed_deviation / 2):
+            continue
+        draw_into_district(df, precinct, acceptor_district)
 
     #fix any district that is fully surrounded by dist_ids other than its 
     #own (redraw it to match majority dist_id surrounding it)
@@ -222,6 +219,7 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     recapture_orphan_precincts(df, idx)
 
     print(district_pops(df))
+    print(f"The most and least populous district differ by: {population_deviation(df)}")
 
 
 def population_deviation(df):
@@ -268,7 +266,6 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_af
             print(f"You've now swapped {count-1} times. Stopping")
             break
         print(f"Now doing swap cycle #{count}...")
-        print(f"The most and least populous district differ by: {population_deviation(df)}")
         pop_devs_so_far.append(population_deviation(df))
         mapwide_pop_swap(df, allowed_deviation)
         if plot_each_step:
@@ -340,7 +337,7 @@ def recapture_orphan_precincts(df, idx):
     for row in df.itertuples():
         neighboring_districts = find_neighboring_districts(df, row[idx['neighbors']])
         if row[idx['dist_id']] not in neighboring_districts: 
-            print(f"Reclaiming orphan precinct {row[idx['GEOID20']]}...")
+            #print(f"Reclaiming orphan precinct {row[idx['GEOID20']]}...")
             draw_into_district(df, row[idx['GEOID20']], smallest_neighbor_district(df, neighboring_districts))
 
 

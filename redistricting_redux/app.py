@@ -2,7 +2,7 @@
 
 #from .load_state_data import select_state #has to be this way for python3 -m to work
 from load_state_data import load_state #has to be this way for poetry run python to work
-from draw_random_maps import draw_dart_throw_map, repeated_pop_swap, population_deviation, target_dist_pop, dissolve_map, plot_dissolved_map
+from draw_random_maps import draw_dart_throw_map, repeated_pop_swap, population_deviation, district_pops, target_dist_pop, dissolve_map, plot_dissolved_map
 from collections import OrderedDict
 import time
 from stats import population_sum, mean_voteshare, winner_2020
@@ -25,7 +25,7 @@ SUPPORTED_STATES = OrderedDict({
 def run(state_input=None):
 
     while state_input not in SUPPORTED_STATES:
-        state_input = input("Type a two-letter state postal abbreviation, or type 'list' to see list of supported states: ")
+        state_input = input("Type a two-letter state postal abbreviation, or type 'list' to see list of supported states: ").upper()
         if state_input == 'list':
             print("Here's a list of states currently supported by the program:")
             for k, v in SUPPORTED_STATES.items():
@@ -41,11 +41,11 @@ def run(state_input=None):
     df = load_state(state_input)
 
     user_seed = ''
-    while not user_seed.isnumeric():
-        user_seed = input("Pick a lucky number for the seed of our random map drawing process: ")
+    while not type(user_seed) == int:
+        user_seed = input("\nPick a lucky number for the seed of our random map drawing process: ")
         if user_seed in {'quit', 'exit', 'esc', 'escape', 'halt', 'stop'}:
             break
-        elif type(user_seed) != int:
+        elif not user_seed.isnumeric():
             print("Come on, buddy. Just a regular old positive integer.")
         else:
             user_seed = int(user_seed)
@@ -55,19 +55,21 @@ def run(state_input=None):
 
     num_districts = SUPPORTED_STATES[state_input]['num_districts']
     target_pop = target_dist_pop(df, num_districts)
-    print(f"({state_fullname} has {num_districts} Congressional districts and {population_sum(df)} people.)\nGoal is: {target_pop} people per district")
+    print(f"({state_fullname} has {num_districts} Congressional districts and {population_sum(df)} people.)\nGoal is: {target_pop} people per district\n")
     time.sleep(2)
 
     draw_dart_throw_map(df, num_districts, seed=user_seed)
 
+    print(f"\nThe populations of your districts are:\n{district_pops(df)}")
+    deviation = population_deviation(df)
+    print(f"The most and least populous district differ by: {deviation}")
     
     #maybe make this a while loop so people can choose how long to balance for
-    deviation = population_deviation(df)
     if deviation <= target_pop // 10:
         print("It looks like these districts' populations are pretty balanced!")
     else:
         print("It looks like these districts are not very well balanced by population.")
-    print("Note: In real life, a state's U.S. Congressional districts must be as close\nto equal as possible in population.")
+    print("(Note: In real life, a state's U.S. Congressional districts must be as close\nto equal as possible in population.)")
 
     print("Do you want to try to swap precincts between districts to balance their population?\nIf so, type 'yes'.")
     swap_choice = input("WARNING: This swap process can take several minutes, and might not reach\nthe threshold you want:\n")
@@ -80,17 +82,28 @@ def run(state_input=None):
         if not user_allowed_deviation.isnumeric():
             print("That's not a valid integer, so we'll just go with {target_pop // 10}.")
             user_allowed_deviation = target_pop // 10
-        #...this point
-        user_steps = input(f"How many times do you want to iterate the swapping process? Each iteration can take 60-90 seconds.")
-        if not user_steps.isnumeric():
-            print("That's not a valid integer, so let's go with 5.")
-            user_steps = 5
-        repeated_pop_swap(df, allowed_deviation=int(user_allowed_deviation), 
-                          plot_each_step=False, stop_after=int(user_steps))
+        else:
+            #since user input is type str, must be hard-cast to int for comparisons to work
+            user_allowed_deviation = int(user_allowed_deviation)
+        #Let user continue swapping process if they so choose
+        while swap_choice in YES:
+            user_steps = input(f"How many times do you want to iterate the swapping process? Each iteration can take 60-90 seconds.")
+            if not user_steps.isnumeric():
+                print("That's not a valid integer, so let's go with 5.")
+                user_steps = 5
+            repeated_pop_swap(df, allowed_deviation=user_allowed_deviation, 
+                            plot_each_step=False, stop_after=int(user_steps))
+            deviation = population_deviation(df)
+            if deviation <= user_allowed_deviation:
+                break
+            else:
+                print("It looks like districts still aren't as balanced as you want.")
+                swap_choice = input("Do you wish to continue the swapping process for more steps? ")
+                
         #if we're still not at user_allowed_deviation:
             #give user some chance to keep balancing here y/n, if y, go back up to...
 
-    print("Okay, we have our map set up. Let's estimate how fair it is!")
+    print("\nOkay, we have our map set up. Let's estimate how fair it is!")
     winner = winner_2020(df)
     if "JOE BIDEN" in winner:
         winner_party = 'd'
