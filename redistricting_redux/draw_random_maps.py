@@ -58,8 +58,9 @@ def all_allowed_neighbors_of_district(df, id):
     nabe_set = set(np.concatenate(df.loc[df.dist_id == id, 'neighbors'].values))
 
     #seems to be slower as a set comprehension than as a list comprehension
+
     allowed_neighbors = [nabe for nabe in nabe_set
-                         if df.loc[df.GEOID20 == nabe, 'dist_id'].item() is None]
+                         if df.loc[df.GEOID20 == nabe, 'dist_id'].isna().any()]
 
     return allowed_neighbors
 
@@ -208,7 +209,7 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
             smallest_neighbor = smallest_neighbor_district(df, proper_neighbors)
             if (population_sum(df, district=row[idx['dist_id']]) > target_pop and 
                 population_sum(df, district=smallest_neighbor) < target_pop):
-                draw_to_do = (row[idx['dist_id']], row[idx['GEOID20']], smallest_neighbor)
+                draw_to_dfo = (row[idx['dist_id']], row[idx['GEOID20']], smallest_neighbor)
                 draws_to_do.append(draw_to_do)
 
     print("Doing all valid precinct reassignments...")
@@ -230,7 +231,7 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
 
     print(district_pops(df))
     end = time.time()
-    print(end-start)
+    # print(end-start)
 
 def population_deviation(df):
     '''
