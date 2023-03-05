@@ -4,6 +4,7 @@ All functions in this file by: Matt Jackson
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+import math
 from collections import OrderedDict
 from ast import literal_eval
 
@@ -94,29 +95,32 @@ def make_neighbors_dict(df, neighbors_as_lists=True):
     and the GEOIDs of the precinct's neighbors are a corresponding value.
     For metric stuff. Idea for function from Sarik Goyal
 
-    NOTE TO SARIK: I suppose we could export the output of this too, since it'll be 
-    invariant regardless of map we draw for state. Perhaps to_json? Feel free
-    to add a line that does that and puts it in merged_shps or wherever our
-    data goes.
-
     Inputs:
         -df(geopandas GeoDataFrame): state data by precinct/VTD. MUST HAVE
         NEIGHBORS LIST INSTANTIATED CORRECTLY
-        -neighbors_as_lists (boolean): if True, outputs a dict where the neighbors
-        lists are basic Python lists. if False, keeps the type of neighbors as
-        a numpy ndarray with dtype=object, as it was originally in the GeoDataFrame.
 
-    Returns (dict): that dictionary. Note that the neighbors lists are technically
-    numpy ndarrays of dtype object, not Python lists.
+    Returns (dict): that dictionary.
     '''
     assert 'neighbors' in df.columns, "This dataframe doesn't have neighbors instantiated yet!"
 
     #Zip method for quick dict construction:
     #https://www.includehelp.com/python/how-to-create-a-dictionary-of-two-pandas-dataframes-columns.aspx
 
-    neighbors_dict = dict(zip(df.GEOID20, df.neighbors))
-    if neighbors_as_lists:
-        #syntax for type conversion inspired by:
-        #https://www.geeksforgeeks.org/python-type-conversion-in-dictionary-values/
-        neighbors_dict = [dict([k, list(v)] for k,v in neighbors_dict.items())]
+    df["dem_voteshare"] = df["G20PREDBID"] / (df["G20PREDBID"] + df["G20PRERTRU"])
+    geoids_to_voteshares = pd.Series(df.dem_voteshare.values, index = \
+        df.GEOID20).to_dict()
+    
+    #First map voteshares to array of neighboring GEOIDs
+    voteshares_to_geoid_neighbs = dict(zip(df.dem_voteshare, df.neighbors))
+        
+    neighbors_dict = {}
+    for voteshare, neighbors in voteshares_to_geoid_neighbs.items():
+        if not math.isnan(voteshare):
+            voteshare_neighbs = []
+            for neighbor in neighbors:
+                voteshare_neighb = geoids_to_voteshares[neighbor]
+                if not math.isnan(voteshare_neighb):
+                    voteshare_neighbs.append(voteshare_neighb)
+            neighbors_dict[voteshare] = voteshare_neighbs
+            
     return neighbors_dict

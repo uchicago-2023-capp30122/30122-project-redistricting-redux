@@ -55,11 +55,12 @@ def create_linear_model(ntrials):
     Returns:
         model (LinearRegression object)
     """
+    print("generating training data")
     df = generate_training_data(ntrials)
-    X = df[["mean_voteshare", "district_size", "num_districts", \
-            "clustering_score"]]
+    X = df[["mean_voteshare", "clustering_score"]]
     Y = df[["per_districts_won"]]
 
+    print("creating model")
     model = LinearRegression().fit(X, Y)
 
     return model
@@ -76,9 +77,10 @@ def predict_state_voteshare(state, ntrials):
     """
     model = create_linear_model(ntrials)
 
+    print("applying model to state")
     gdf = load_state_data.load_state(state)
     load_state_data.affix_neighbors_list(gdf, \
-        f"merged_shps/{state}_2020_neighbors.csv")
+        f"redistricting_redux/merged_shps/{state}_2020_neighbors.csv")
     neighbors_dict = load_state_data.make_neighbors_dict(gdf)
 
     cluster_score = proportionality.clustering_score(neighbors_dict)
@@ -88,11 +90,8 @@ def predict_state_voteshare(state, ntrials):
     else:
         mean_vshare = 1 - mean_vshare
         maj_party = "Republicans"
-    dist_size = stats.district_size(gdf)
-    num_districts = max(gdf['dist_id'])
 
-    prediction = model.predict([[mean_vshare, dist_size, num_districts, \
-        cluster_score]])
+    prediction = model.predict([[mean_vshare, cluster_score]])[0][0]
 
     print(f"{maj_party} are expected to win {prediction * 100}% of the seats")
 
