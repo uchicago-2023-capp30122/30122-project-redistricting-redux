@@ -60,3 +60,37 @@ def district_size(df, num_districts=None, sqrt_output=True):
         size_metric = sqrt(size_metric)
 
     return size_metric
+
+
+###The below is redundant with dissolve_map
+
+def results_by_district(df, state_abbv="", export_to=False):
+    '''
+    Compresses the df down to a table of by-district stats, where each row
+    represents the entire area with one dist_id. Dissolve process is slow,
+    but could speed up plotting and metrics generation.
+
+    Inputs:
+        -df (geopandas GeoDataFrame): state level precinct/VTD data. Should
+        have dist_id assigned for every precinct.
+        -export_to (str): name of file to export to
+
+    Returns (geopandas GeoDataFrame): state level data by custom district
+    '''
+    df = df.drop(['neighbors'], axis=1)
+    df_dists = df.dissolve(by='dist_id', aggfunc=sum)
+    df_dists.reset_index(drop=True)
+    set_blue_red_diff(df_dists)
+    #will cause a ZeroDivisionError if any districts are exactly tied
+    df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
+    df_dists['area'] = df_dists['geometry'].to_crs('EPSG:3857').area
+    df_dists['popdensity'] = df_dists['POP100'] / df_dists['area']
+
+    if export_to:
+        print("Exporting by-district vote results to file...")
+        timestamp = datetime.now().strftime("%m%d-%H%M%S")
+        filepath = f"redistricting_redux/exports/{state_abbv}_test_dists_{timestamp}.shp"
+        df_dists.to_file(filepath)
+        print("Export complete.")
+        
+    return df_dists

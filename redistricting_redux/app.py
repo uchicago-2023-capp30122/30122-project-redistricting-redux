@@ -27,10 +27,6 @@ SUPPORTED_STATES = OrderedDict({
                                 'TX': {'fullname':"Texas", 'num_districts':38,
                                         'curr_d':13, 'curr_r':25}
                                 })
-#We also pulled data for IL, but it's missing VTDs for huge swaths of the Cook County suburbs
-#so we're removing it as an option for a state
-
-#TODO: allow for taking in state abbreviation as optional argument from command line
 
 def run(state_input=None):
 
@@ -48,6 +44,7 @@ def run(state_input=None):
     state_fullname = SUPPORTED_STATES[state_input]['fullname']
     print(f"You typed: {state_input} (for {state_fullname})")
 
+    print(f"Importing {state_input} 2020 Redistricting Data Hub data...")
     df = load_state(state_input)
 
     user_seed = ''

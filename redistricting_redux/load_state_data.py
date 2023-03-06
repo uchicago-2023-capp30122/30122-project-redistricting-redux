@@ -18,7 +18,6 @@ def load_state(state_input, init_neighbors=False, affix_neighbors=True):
     Returns (geopandas GeoDataFrame)
     '''
 
-    print(f"Importing {state_input} 2020 Redistricting Data Hub data...")
     fp = f"redistricting_redux/merged_shps/{state_input}_VTD_merged.shp"
     state_data = gpd.read_file(fp)
     if "Tot_2020_t" in state_data.columns:
@@ -31,7 +30,7 @@ def load_state(state_input, init_neighbors=False, affix_neighbors=True):
     if affix_neighbors:
         neighbor_fp = f'redistricting_redux/merged_shps/{state_input}_2020_neighbors.csv'
         affix_neighbors_list(state_data, neighbor_fp)
-        print("Neighbors list affixed from file")
+        print("Neighbors list initialized")
     state_data['dist_id'] = None
 
     return state_data   

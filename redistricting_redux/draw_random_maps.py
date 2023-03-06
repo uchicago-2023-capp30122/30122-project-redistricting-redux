@@ -324,9 +324,7 @@ def smallest_neighbor_district(df, neighbor_districts):
 def recapture_orphan_precincts(df, idx):
     '''
     Finds precincts that are entirely disconnected from the bulk of their 
-    district and reassigns them to a surrounding district.
-    This is very slow. TODO: Find a way to isolate the rows worth iterating over 
-    first, ideally vectorized, and then just iterate across those
+    district and reassigns them to a surrounding district. This is slow.
 
     Inputs:
         -df (geopandas GeoDataFrame): state level precinct/VTD data. Should
@@ -366,7 +364,7 @@ def dissolve_map(df):
     return df_dists
 
 
-def plot_dissolved_map(df_dists, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None):
+def plot_dissolved_map(df_dists, state_postal, dcol="G20PREDBID", rcol="G20PRERTRU"):
     '''
     Plot a map that dissolves precinct boundaries to show districts as solid
     colors based on their vote margin. Displays it on screen if user's 
@@ -383,7 +381,6 @@ def plot_dissolved_map(df_dists, state_postal, dcol="G20PREDBID", rcol="G20PRERT
         -rcol (str): Name of the column that contains Republican voteshare data
         (i.e. estimated number of votes cast for Donald Trump in the precinct
         in the November 2020 presidnetial election)
-        -export_to (str or None): TODO: location to export the map image to.
 
     Returns: None, displays plot on-screen and saves image to file
     '''
@@ -404,41 +401,6 @@ def plot_dissolved_map(df_dists, state_postal, dcol="G20PREDBID", rcol="G20PRERT
     plt.pyplot.close()
 
     return filepath
-
-
-### STATS FUNCTIONS###
-
-def results_by_district(df, state_abbv="", export_to=False):
-    '''
-    Compresses the df down to a table of by-district stats, where each row
-    represents the entire area with one dist_id. Dissolve process is slow,
-    but could speed up plotting and metrics generation.
-
-    Inputs:
-        -df (geopandas GeoDataFrame): state level precinct/VTD data. Should
-        have dist_id assigned for every precinct.
-        -export_to (str): name of file to export to
-
-    Returns (geopandas GeoDataFrame): state level data by custom district
-    '''
-    df = df.drop(['neighbors'], axis=1)
-    df_dists = df.dissolve(by='dist_id', aggfunc=sum)
-    df_dists.reset_index(drop=True)
-    set_blue_red_diff(df_dists)
-    #will cause a ZeroDivisionError if any districts are exactly tied
-    df_dists['raw_margin'] = (df_dists["G20PREDBID"] - df_dists["G20PRERTRU"]) / (df_dists["G20PREDBID"] + df_dists["G20PRERTRU"])
-    df_dists['area'] = df_dists['geometry'].to_crs('EPSG:3857').area
-    #TODO: add df_dists['perimeter']?
-    df_dists['popdensity'] = df_dists['POP100'] / df_dists['area']
-
-    if export_to:
-        print("Exporting by-district vote results to file...")
-        timestamp = datetime.now().strftime("%m%d-%H%M%S")
-        filepath = f"redistricting_redux/exports/{state_abbv}_test_dists_{timestamp}.shp"
-        df_dists.to_file(filepath)
-        print("Export complete.")
-        
-    return df_dists
 
 
 def district_pops(df):
