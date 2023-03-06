@@ -1,6 +1,4 @@
-This is an actual README for the redistricting redux project.
-
-To run this from the command line, type `poetry shell` to instantiate a poetry shell, then type `poetry run python redistricting_redux`. That will call `__main__.py`, which in turn calls `app.py`. 
+To run this project from the command line, type `poetry shell` to instantiate a poetry shell, then type `poetry run python redistricting_redux`. That will call `__main__.py`, which in turn calls `app.py`. If necessary, input command `poetry install` first to get dependencies set up.
 
 As of now, you CANNOT use `python3 -m...`; it WILL NOT work.
 
