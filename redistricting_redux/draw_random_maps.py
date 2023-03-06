@@ -276,6 +276,7 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_af
         if plot_each_step:
             plot_dissolved_map(df, "test")
         dist_pops = district_pops(df)
+        print(f"The most and least populous district differ by: {population_deviation(df)}")
     if population_deviation(df) <= allowed_deviation:
         print("You've reached your population balance target. Hooray!")
 

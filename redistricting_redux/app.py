@@ -96,7 +96,7 @@ def run(state_input=None):
             user_allowed_deviation = int(user_allowed_deviation)
         #Let user continue swapping process if they so choose
         while swap_choice in YES:
-            user_steps = input(f"How many times do you want to iterate the swapping process? Each iteration can take 60-90 seconds.")
+            user_steps = input(f"How many times do you want to iterate the swapping process? Each iteration can take 60-90 seconds: ")
             if not user_steps.isdigit():
                 print("That's not a valid integer, so let's go with 5.")
                 user_steps = 5
@@ -160,6 +160,7 @@ def run(state_input=None):
         fp = plot_dissolved_map(df_dists, state_input, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None)
         print(f"Map saved to filepath \"/{fp}\". Go open that file to look at your map!")
 
+    print("Goodbye for now!")
 
 
 
