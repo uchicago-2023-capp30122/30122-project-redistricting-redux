@@ -203,7 +203,7 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
             smallest_neighbor = smallest_neighbor_district(df, proper_neighbors)
             if (population_sum(df, district=row[idx['dist_id']]) > target_pop and 
                 population_sum(df, district=smallest_neighbor) < target_pop):
-                draw_to_dfo = (row[idx['dist_id']], row[idx['GEOID20']], smallest_neighbor)
+                draw_to_do = (row[idx['dist_id']], row[idx['GEOID20']], smallest_neighbor)
                 draws_to_do.append(draw_to_do)
 
     print("Doing all valid precinct reassignments...")
@@ -223,8 +223,6 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     recapture_orphan_precincts(df, idx)
 
     print(district_pops(df))
-    end = time.time()
-    print(end-start)
 
 def population_deviation(df):
     '''
