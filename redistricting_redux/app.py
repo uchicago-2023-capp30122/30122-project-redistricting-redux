@@ -14,12 +14,18 @@ import warnings
 warnings.filterwarnings("ignore")
 
 SUPPORTED_STATES = OrderedDict({
-                                'AZ': {'fullname':"Arizona", 'num_districts':9},
-                                'GA': {'fullname':"Georgia", 'num_districts':14},
-                                'NV': {'fullname':"Nevada", 'num_districts':4},
-                                'NC': {'fullname':"North Carolina", 'num_districts':14},
-                                'OH': {'fullname':"Ohio", 'num_districts':15},
-                                'TX': {'fullname':"Texas", 'num_districts':38}
+                                'AZ': {'fullname':"Arizona", 'num_districts':9,
+                                        'curr_d':3, 'curr_r':6},
+                                'GA': {'fullname':"Georgia", 'num_districts':14,
+                                        'curr_d':5, 'curr_r':9},
+                                'NV': {'fullname':"Nevada", 'num_districts':4,
+                                        'curr_d':3, 'curr_r':1},
+                                'NC': {'fullname':"North Carolina", 'num_districts':14,
+                                        'curr_d':7, 'curr_r':7},
+                                'OH': {'fullname':"Ohio", 'num_districts':15,
+                                        'curr_d':5, 'curr_r':10},
+                                'TX': {'fullname':"Texas", 'num_districts':38,
+                                        'curr_d':13, 'curr_r':25}
                                 })
 #We also pulled data for IL, but it's missing VTDs for huge swaths of the Cook County suburbs
 #so we're removing it as an option for a state
@@ -138,12 +144,13 @@ def run(state_input=None):
         else:
             r_dists_on_map += 1
 
-    print(f"By contrast, your map has {d_dists_on_map} districts that lean Democratic and {r_dists_on_map} districts that lean Republican.")
+    print(f"\nBy contrast, your map has {d_dists_on_map} districts that lean Democratic and {r_dists_on_map} districts that lean Republican.")
     if "Democratic" in winner:
         maj_party_seatshare = (d_dists_on_map / num_districts) * 100
     elif "Republican" in winner:
         maj_party_seatshare = (r_dists_on_map / num_districts) * 100
     print(f"Which looks like the majority party is likely to get {maj_party_seatshare:.2f}% of the seats.")
+    print(f"\nAnd, for reference, the current real world map for {state_fullname} elected {SUPPORTED_STATES[state_input]['curr_d']} Democrats and {SUPPORTED_STATES[state_input]['curr_r']} Republicans in 2022.")
     print("Interesting!")
 
     plot_choice = input("Would you like to see a plot of your map on the state?\n")
