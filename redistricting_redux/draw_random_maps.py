@@ -482,7 +482,7 @@ def plot_GEOID20s(df):
     for idx, row in df.iterrows():
         plt.pyplot.annotate(text=row['GEOID20'], 
                             xy=(row['center'].x, row['center'].y), 
-                            horizontalalignment='center', fontsize=0.5)
+                            horizontalalignment='center', fontsize=0.1)
 
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
     filepath = f'maps/GEOID_testmap_' + timestamp

@@ -16,12 +16,13 @@ warnings.filterwarnings("ignore")
 SUPPORTED_STATES = OrderedDict({
                                 'AZ': {'fullname':"Arizona", 'num_districts':9},
                                 'GA': {'fullname':"Georgia", 'num_districts':14},
-                                'IL': {'fullname':"Illinois", 'num_districts':17},
                                 'NV': {'fullname':"Nevada", 'num_districts':4},
                                 'NC': {'fullname':"North Carolina", 'num_districts':14},
                                 'OH': {'fullname':"Ohio", 'num_districts':15},
                                 'TX': {'fullname':"Texas", 'num_districts':38}
                                 })
+#We also pulled data for IL, but it's missing VTDs for huge swaths of the Cook County suburbs
+#so we're removing it as an option for a state
 
 #TODO: allow for taking in state abbreviation as optional argument from command line
 
