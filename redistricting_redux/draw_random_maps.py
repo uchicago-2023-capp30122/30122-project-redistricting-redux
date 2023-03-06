@@ -1,6 +1,5 @@
 '''
 All functions in this file by: Matt Jackson
-
 Special thanks to Ethan Arsht for advice on mapwide_pop_swap
 '''
 import pandas as pd
@@ -58,8 +57,7 @@ def all_allowed_neighbors_of_district(df, id):
     #idea for np.concatenate: https://stackoverflow.com/questions/28125265/concatenate-numpy-arrays-which-are-elements-of-a-list
     nabe_set = set(np.concatenate(df.loc[df.dist_id == id, 'neighbors'].values))
 
-    #seems to be slower as a set comprehension than as a list comprehension
-
+    #seems to be faster as a list comprehension than as a set comprehension
     allowed_neighbors = [nabe for nabe in nabe_set
                          if df.loc[df.GEOID20 == nabe, 'dist_id'].isna().any()]
 
@@ -68,12 +66,16 @@ def all_allowed_neighbors_of_district(df, id):
 
 def draw_dart_throw_map(df, num_districts, seed=2023, clear_first=True):
     '''
-    NEW 3/2/2023! See if we can avoid some of the drama of chaos district draw,
-    and make things go faster.
     Start by picking random precincts on the map, as if "throwing a dart" at it,
-    to represent starting points of each district.
-    Then just call fill_district_holes to expand the map out from each starting
-    point until it's full.
+    to represent starting points of each district. Then expand each district out
+    from the "dart"-thrown precinct until it's full or expansion cannot continue,
+    stopping each district when it's "trapped" or when it hits the target
+    population size. When it's no longer possible to fill the map this way,
+    switch to expanding some districts beyond target population size to fill
+    remaining unfilled precincts. 
+    
+    District assignments made by this function will almost always need to be 
+    balanced later using repeated_pop_swap.
 
     Initial idea of "throwing darts at a map" suggested by office hours 
     conversation with James Turk.
@@ -175,8 +177,8 @@ def mapwide_pop_swap(df, allowed_deviation=70000):
     attempts to balance their population by moving  precincts from overpopulated
     districts into underpopulated ones.
 
-    This function is VERY SLOW - takes about 75-90 seconds to iterate
-    through the rows of the df, and then about 10-15 seconds to reclaim
+    This function is VERY SLOW - takes about 30 seconds to iterate
+    through 1000 rows of the df, and then up to 15 seconds to reclaim
     'orphan' precincts. Attempts to vectorize and speed it up (visible in
     UNUSED_FILES/mapwide_popswap_2.py) were largely unsuccessful and abandoned.
 
@@ -237,7 +239,8 @@ def population_deviation(df):
 
 
 def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_after=20):
-    '''Repeatedly calls mapwide_pop_swap() until populations of districts are 
+    '''
+    Repeatedly calls mapwide_pop_swap() until populations of districts are 
     within allowable deviation range. Terminates early if the procedure is 
     unable to equalize district populations any further. 
     
@@ -275,7 +278,6 @@ def repeated_pop_swap(df, allowed_deviation=70000, plot_each_step=False, stop_af
         dist_pops = district_pops(df)
     if population_deviation(df) <= allowed_deviation:
         print("You've reached your population balance target. Hooray!")
-    #print(f"Population deviation at every step was: \n{pop_devs_so_far}")
 
 
 def find_neighboring_districts(df, lst, include_None=True):
@@ -313,9 +315,7 @@ def smallest_neighbor_district(df, neighbor_districts):
         -precinct (str): GEOID20 field of precinct
     Returns (int): dist_id
     '''
-    #print(neighboring_districts)
     nabe_dists_by_pop = {v:k for k,v in district_pops(df).items() if k in neighbor_districts}
-    #print(nabe_dist_pops)
     smallest_neighbor = nabe_dists_by_pop[min(nabe_dists_by_pop)]
     return smallest_neighbor
 
@@ -330,16 +330,14 @@ def recapture_orphan_precincts(df, idx):
     Inputs:
         -df (geopandas GeoDataFrame): state level precinct/VTD data. Should
         have dist_id assigned for every precinct.
-        -idx (dict): idx object created when using itertuples earlier
+        -idx (dict): idx object created for earlier use of itertuples in
+        mapwide_pop_swap
 
     Returns: None, modifies df in-place 
     '''
-    #make a complex boolean to filter the df and then just iterate on that
-
     for row in df.itertuples():
         neighboring_districts = find_neighboring_districts(df, row[idx['neighbors']])
         if row[idx['dist_id']] not in neighboring_districts: 
-            #print(f"Reclaiming orphan precinct {row[idx['GEOID20']]}...")
             draw_into_district(df, row[idx['GEOID20']], smallest_neighbor_district(df, neighboring_districts))
 
 
@@ -348,8 +346,6 @@ def dissolve_map(df):
     Dissolves a precinct-level map into districts. To be used only after
     district assignment is finalized (i.e. after any population balancing
     or modification you want to do).
-    The goal will be to refactor plot_dissolved_map to use this instead of doing
-    it in-function.
 
     Inputs:
         -df (geopandas GeoDataFrame): state preinct/VTD-level data, with 
@@ -401,8 +397,6 @@ def plot_dissolved_map(df_dists, state_postal, dcol="G20PREDBID", rcol="G20PRERT
                             xy=(row['center'].x, row['center'].y), 
                             horizontalalignment='center', fontsize=4)
 
-    #TODO: Add a legend of dist_ids that doesn't overlap with map
-
     timestamp = datetime.now().strftime("%m%d-%H%M%S")
     filepath = f'redistricting_redux/maps/{state_postal}_map_' + timestamp
     plt.pyplot.savefig(filepath, dpi=300) 
@@ -411,7 +405,7 @@ def plot_dissolved_map(df_dists, state_postal, dcol="G20PREDBID", rcol="G20PRERT
     return filepath
 
 
-### STATS FUNCTIONS (to be moved over to stats or elsewhere, perhaps) ###
+### STATS FUNCTIONS###
 
 def results_by_district(df, state_abbv="", export_to=False):
     '''
