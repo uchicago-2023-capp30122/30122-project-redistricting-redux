@@ -28,7 +28,7 @@ def load_state(state_input, init_neighbors=False, affix_neighbors=True):
     if init_neighbors:
         set_precinct_neighbors(state_data, state_input)
         print("Precinct neighbors calculated")
-    if affix_neighbors: #maybe figure out how to do these as command line flags
+    if affix_neighbors:
         neighbor_fp = f'redistricting_redux/merged_shps/{state_input}_2020_neighbors.csv'
         affix_neighbors_list(state_data, neighbor_fp)
         print("Neighbors list affixed from file")
@@ -57,12 +57,9 @@ def set_precinct_neighbors(df, state_postal):
     
     for index, row in df.iterrows():
         neighbors = np.array(df[df.geometry.touches(row['geometry'])].GEOID20)
-        #maybe there's a way to update neighbors for all the neighbors this one finds too? to speed up/reduce redundant calcs?
         overlap = np.array(df[df.geometry.overlaps(row['geometry'])].GEOID20)
         if len(overlap) > 0:
             neighbors = np.union1d(neighbors, overlap)
-        #If you convert to tuple here, later procedures to find available neighbors can use sets instead of lists
-        #(np.array is an unhashable type)
         df.at[index, 'neighbors'] = neighbors
         if index % 100 == 0:
             print(f"Neighbors for precinct {index} calculated")

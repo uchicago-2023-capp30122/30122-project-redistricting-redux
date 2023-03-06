@@ -1,10 +1,10 @@
 '''
 All functions in file by: Matt Jackson
+
+Separating basic stats about the geoDataFrame that aren't *inherently* mapping 
+functions into their own file for better code organization.
 '''
 from math import sqrt
-
-#Separating basic stats that aren't *inherently* mapping functions into
-#their own file for better code organization
 
 def population_sum(df, colname="POP100", district=None):
     '''
@@ -82,7 +82,6 @@ def target_dist_pop(df, n=14):
         currently 14)
     Returns (int): Target population value 
     '''
-    #gonna have to change what "tot" is named based on data source
     return population_sum(df) // n
 
 def metric_area(df, district=None):
@@ -100,18 +99,23 @@ def metric_area(df, district=None):
     METERS_TO_KM = .000001
 
     return df['area'].sum() * METERS_TO_KM
-    #this doesn't seem to output the actual value for Georgia, which is 153910 sq km
-    #this outputs 217785.269...
-    #it may not matter that much if we're just using density comparatively
-    #we can also use a fudge factor if we need it to be accurate
+    #Note: this doesn't output the actual value for Georgia, which is 153910 sq km
+    #It outputs 217785.269...our use of areas is strictly comparative though
 
 def population_density(df, colname, district=None):
-    '''A rough population density statistic to feed into Sarik's metrics'''
-    #Is there any reason to also do this for precincts?
+    '''A rough population density statistic to feed into Sarik's metrics.
+    
+    Inputs:
+        -df (geopandas GeoDataFrame): state data by precincts/VTDs
+        -colname (str): column to use (defaults to 'POP100' through call to
+        population_sum in function)
+        -district (int or None): dist_id to obtain density for
+        
+        Returns (float): population density value
+        '''
     return population_sum(df, colname, district) / metric_area(df, district)
 
-
-###MORE STUFF ADDED 3/4 TO FEED INTO METRICS###
+###Procedures that go into statistical model rather than map-drawing###
 
 def mean_voteshare(df, party="d", dcol="G20PREDBID", rcol="G20PRERTRU", district=None, as_percent=False):
     '''
@@ -187,6 +191,15 @@ def district_size(df, num_districts=None, sqrt_output=True):
     return size_metric
 
 def winner_2020(df):
+    '''
+    Outputs who won the state in the 2020 U.S. presidential election, as
+    measured by major-party vote share (i.e. excluding third party candidates).
+
+    Inputs:
+        -df (geoPandas GeoDataFrame): state-level data by precinct/VTD
+
+    Returns (str): a string with candidate name, party, and party color    
+    '''
     if mean_voteshare(df, party="d") > mean_voteshare(df, party="r"):
         return "JOE BIDEN, the Democratic (blue) candidate"
     else:
