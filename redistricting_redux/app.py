@@ -125,9 +125,9 @@ def run(state_input=None):
     time.sleep(1)
 
     print("Let's now use our partisan balance model to predict the expected\npartisan balance of our state.")
-    print("Please input the number of trials you would like to run\nto generate the model.")
-    print("More trials will result in longer runtime, but\nwill produce more precise results.")
-    ntrials = input("For context, 100 trials takes about \na minute.: ")
+    print("Please input the number of trials you would like to run to generate the model.")
+    print("More trials will result in longer runtime, but will produce more precise results.")
+    ntrials = input("For context, 100 trials takes about a minute. : ")
     if not ntrials.isdigit():
         ntrials = 50
         print("Setting ntrials to 50 - input was not numeric")
@@ -154,7 +154,7 @@ def run(state_input=None):
     if plot_choice not in YES:
         print("Okay. Though you really should pick 'yes' next time to see the map plotting feature!")
     else:
-        fp = plot_dissolved_map(df_dists, state_input, dcol="G20PREDBID", rcol="G20PRERTRU", export_to=None)
+        fp = plot_dissolved_map(df_dists, state_input)
         print(f"Map saved to filepath \"/{fp}\". Go open that file to look at your map!")
 
     print("Goodbye for now!")
