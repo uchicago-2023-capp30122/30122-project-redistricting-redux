@@ -10,7 +10,7 @@ import re
 import time
 from datetime import datetime
 import matplotlib as plt
-from stats import population_sum, blue_red_margin, target_dist_pop, metric_area, population_density, set_blue_red_diff #not sure i did this relative directory right
+from stats import population_sum, blue_red_margin, target_dist_pop, set_blue_red_diff #not sure i did this relative directory right
 
 
 def clear_dist_ids(df):
