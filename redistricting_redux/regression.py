@@ -92,5 +92,7 @@ def predict_state_voteshare(state, ntrials):
         maj_party = "Republicans"
 
     prediction = model.predict([[mean_vshare, cluster_score]])[0][0]
+    prediction = min(prediction, 1)
+    prediction = max(0, prediction)
     print(f"{maj_party} are expected to win {prediction * 100}% of the seats")
     return prediction

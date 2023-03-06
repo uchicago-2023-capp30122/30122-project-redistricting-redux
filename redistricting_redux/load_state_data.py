@@ -121,6 +121,7 @@ def make_neighbors_dict(df, neighbors_as_lists=True):
                 voteshare_neighb = geoids_to_voteshares[neighbor]
                 if not math.isnan(voteshare_neighb):
                     voteshare_neighbs.append(voteshare_neighb)
-            neighbors_dict[voteshare] = voteshare_neighbs
+            if voteshare_neighbs:
+                neighbors_dict[voteshare] = voteshare_neighbs
             
     return neighbors_dict
