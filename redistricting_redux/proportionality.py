@@ -1,10 +1,9 @@
 # Title: Simulating Partisan Proportionality of Districts Using a Grid
 # Author: Sarik Goyal
-# Last Updated: 03/04/23
+# Last Updated: 03/07/23
 
 import random
 import numpy as np
-import matplotlib.pyplot as plt
 import math
 from statistics import mean
 
@@ -15,7 +14,7 @@ from statistics import mean
 #we can still explore a meaningful range of parameters.
 MIN_MEAN = 0.3
 MAX_MEAN = 0.7
-MAX_VARIANCE = 0.05
+MAX_VARIANCE = 0.1
 
 def generate_voteshares(mean_voteshare, var, district_size, num_districts):
     '''
@@ -115,7 +114,10 @@ def mean_neighbor(cluster_dict, neighbors_index_dict, index):
 def generate_clustered_grid(voteshare_list, district_size, num_districts):
     """
     Given a list of voteshares, generates a square grid that represents a state,
-    where VTDs with similar voteshares are clustered to the specified degree.
+    where VTDs with similar voteshares are more likely to be neighbors. 
+    Unfortunately, this function is unable to produce a grid of a specified
+    clustering score. Instead, the function simply creates a grid that is much
+    more clustered than a random grid.
     Inputs:
         voteshare_list (list of floats): a list of voteshares
         district_size (int): the side length of a district
@@ -228,9 +230,7 @@ def simulate_data(mean_voteshare, var, district_size, num_districts, \
 def generate_neighbors(grid):
     """
     Finds the neighboring values of each value in a square grid. Diagonally
-    adjacent elements are considered to be a neighbor. We don't find the
-    neighbors for the elements at the border of the grid in order to make
-    calculations easier and to keep the number of neighbors consistent.
+    adjacent elements are considered to be a neighbor.
     Inputs:
         grid (NumPy array of floats): a square grid of voteshares
     Returns:
