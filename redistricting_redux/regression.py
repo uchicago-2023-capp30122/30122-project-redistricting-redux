@@ -203,8 +203,6 @@ def predict_state_voteshare(state, ntrials):
 
     print("applying model to state")
     gdf = load_state_data.load_state(state)
-    load_state_data.affix_neighbors_list(gdf, \
-        f"redistricting_redux/merged_shps/{state}_2020_neighbors.csv")
     neighbors_dict = load_state_data.make_neighbors_dict(gdf)
 
     var = gdf["dem_voteshare"].var()
